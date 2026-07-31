@@ -46,7 +46,7 @@ jobs:
           node -e "const f='dist/manifest.json',fs=require('fs');const m=JSON.parse(fs.readFileSync(f,'utf8'));m.version='${{ steps.v.outputs.num }}';fs.writeFileSync(f,JSON.stringify(m,null,2));console.log('manifest.version →',m.version)"
 
       - name: Package dist.zip
-        run: cd dist && zip -r ../dist.zip . && cd ..
+        run: zip -r dist.zip dist   # wraps in a top-level dist/ folder (matches the install docs)
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
