@@ -52,6 +52,8 @@ export const manifest: ManifestV3 = {
     // dictionary downloads (catalog): GitHub release + raw hosts
     "https://github.com/*",
     "https://*.githubusercontent.com/*",
+    // "update available" check — the repo's latest release via the GitHub API
+    "https://api.github.com/*",
     // AnkiConnect (sentence mining → Anki) runs locally
     "http://127.0.0.1:8765/*",
     "http://localhost:8765/*",

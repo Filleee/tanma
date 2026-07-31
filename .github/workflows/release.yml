@@ -1,0 +1,60 @@
+name: Release
+
+# Builds the extension into a loadable dist.zip and publishes it as a GitHub Release.
+# Trigger it MANUALLY from the Actions tab (workflow_dispatch, enter a version), or by
+# pushing a v* tag. The built manifest's version is stamped to match the release tag so the
+# in-extension "update available" check works.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to release, e.g. v0.2.0"
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # needed to create the release + upload the asset
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: v
+        run: |
+          TAG="${{ github.event.inputs.version || github.ref_name }}"
+          case "$TAG" in v*) ;; *) TAG="v$TAG" ;; esac   # normalise to a leading v
+          echo "tag=$TAG"        >> "$GITHUB_OUTPUT"
+          echo "num=${TAG#v}"    >> "$GITHUB_OUTPUT"     # manifest version (no leading v)
+          echo "Releasing $TAG"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Stamp manifest version to match the tag
+        run: |
+          node -e "const f='dist/manifest.json',fs=require('fs');const m=JSON.parse(fs.readFileSync(f,'utf8'));m.version='${{ steps.v.outputs.num }}';fs.writeFileSync(f,JSON.stringify(m,null,2));console.log('manifest.version →',m.version)"
+
+      - name: Package dist.zip
+        run: cd dist && zip -r ../dist.zip . && cd ..
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.v.outputs.tag }}
+          name: TANMA! ${{ steps.v.outputs.tag }}
+          files: dist.zip
+          generate_release_notes: true
+          body: |
+            **Install:** download `dist.zip`, unzip it, then load the unzipped `dist` folder
+            unpacked at `chrome://extensions` (Developer mode on).

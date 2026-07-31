@@ -46,6 +46,10 @@ const STYLE = `
   .help b { color:#f3f3f7; }
   kbd { background:#32333c; border-radius:4px; padding:1px 5px; font-family:monospace; color:#f3f3f7; }
   .linkbtn { background:#26272e; color:var(--accent); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:5px 10px; font-size:13px; font-weight:600; cursor:pointer; }
+  .update { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 16px;
+    background:var(--accent); color:#1a1206; font-weight:700; font-size:12.5px; text-decoration:none; cursor:pointer; }
+  .update:hover { filter:brightness(1.06); }
+  .update__go { font-weight:800; white-space:nowrap; }
 `;
 
 async function render(): Promise<void> {
@@ -63,6 +67,10 @@ async function render(): Promise<void> {
 
   const siteLabel = host ? host.replace(/^www\./, "") : "this site";
   root.innerHTML = `
+    <a id="update-banner" class="update" href="#" style="display:none">
+      <span>✨ Update available <b id="update-ver"></b></span>
+      <span class="update__go">Get it →</span>
+    </a>
     <div class="hd">
       <img src="icons/icon-48.png" alt="" />
       <div><b>TANMA! Subtitles</b><span>learning overlay</span></div>
@@ -128,6 +136,25 @@ async function render(): Promise<void> {
   root.querySelector<HTMLButtonElement>("#reader")!.addEventListener("click", () => {
     chrome.tabs.create({ url: chrome.runtime.getURL("reader.html") });
   });
+
+  // "Update available" banner: the background compares the installed version to the repo's latest
+  // GitHub release (cached). If a newer one exists, reveal the banner → clicking opens the release.
+  const banner = root.querySelector<HTMLAnchorElement>("#update-banner")!;
+  chrome.runtime
+    .sendMessage({ type: "checkUpdate" })
+    .then((r: { ok?: boolean; updateAvailable?: boolean; latest?: string | null; url?: string }) => {
+      if (!r?.ok || !r.updateAvailable || !r.latest) return;
+      root.querySelector("#update-ver")!.textContent = r.latest;
+      banner.href = r.url || "#";
+      banner.style.display = "flex";
+      banner.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (r.url) chrome.tabs.create({ url: r.url });
+      });
+    })
+    .catch(() => {
+      /* background asleep / offline */
+    });
 }
 
 render();

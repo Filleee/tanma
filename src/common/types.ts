@@ -250,7 +250,12 @@ export type BgRequest =
   // ---- auto-sync mined tracking from the deck on startup ----
   | { type: "autoSyncMined" }
   // ---- mute this tab's audible output during batch (queue) mining ----
-  | { type: "muteTab"; on: boolean };
+  | { type: "muteTab"; on: boolean }
+  // ---- is a newer release available on GitHub than the installed version? ----
+  | { type: "checkUpdate" };
+export type UpdateCheckResponse =
+  | { ok: true; updateAvailable: boolean; latest: string | null; current: string; url: string }
+  | { ok: false; error: string };
 export type BgResponse = { ok: true; result: LookupResult } | { ok: false; error: string };
 export type DictMediaResponse = { ok: true; dataUrl: string | null } | { ok: false; error: string };
 export type HasTermsResponse = { ok: true; found: { expression: string; reading: string }[] } | { ok: false; error: string };

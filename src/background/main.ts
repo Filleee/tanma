@@ -24,6 +24,7 @@ import { expressionsExist, getMediaDataUrl, lookupFrequencies, lookupKanji, look
 import { deinflect } from "../lib/deinflect";
 import type { TermRecord } from "../lib/yomitan/types";
 import { addCard, proxy as ankiProxy } from "../lib/anki/ankiconnect";
+import { isNewerVersion } from "../lib/version";
 
 // Dictionary lookups + audio run here (not the content script) so cross-origin
 // fetches use the extension's host_permissions instead of the page's CORS rules,
@@ -114,8 +115,66 @@ chrome.runtime.onMessage.addListener((msg: BgRequest, _sender, sendResponse) => 
     sendResponse({ ok: true });
     return false;
   }
+  if (msg?.type === "checkUpdate") {
+    checkForUpdate(false)
+      .then((r) => sendResponse({ ok: true, ...r }))
+      .catch((e) => sendResponse({ ok: false, error: String(e?.message ?? e) }));
+    return true;
+  }
   return false;
 });
+
+// ============================================================ update check
+// Compare the installed version against the repo's latest GitHub release. Cached (≤ every 6h)
+// so opening the popup doesn't hammer the API; the toolbar icon gets a badge when one's available.
+const UPDATE_REPO = "Filleee/tanma";
+const UPDATE_KEY = "tnm:update";
+const UPDATE_CHECK_MS = 6 * 60 * 60 * 1000;
+const RELEASES_URL = `https://github.com/${UPDATE_REPO}/releases`;
+
+interface UpdateInfo {
+  updateAvailable: boolean;
+  latest: string | null;
+  current: string;
+  url: string;
+}
+
+async function checkForUpdate(force: boolean): Promise<UpdateInfo> {
+  const current = chrome.runtime.getManifest().version;
+  const cached = (await chrome.storage.local.get(UPDATE_KEY))[UPDATE_KEY] as { latest?: string | null; url?: string; at?: number } | undefined;
+  let latest = cached?.latest ?? null;
+  let url = cached?.url ?? `${RELEASES_URL}/latest`;
+  const stale = !cached?.at || Date.now() - cached.at > UPDATE_CHECK_MS;
+  if (force || stale) {
+    try {
+      const res = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
+        headers: { Accept: "application/vnd.github+json" },
+      });
+      if (res.ok) {
+        const j = (await res.json()) as { tag_name?: string; html_url?: string };
+        latest = j.tag_name ?? null;
+        url = j.html_url ?? `${RELEASES_URL}/latest`;
+      } else if (res.status === 404) {
+        latest = null; // no releases published yet
+        url = RELEASES_URL;
+      }
+      await chrome.storage.local.set({ [UPDATE_KEY]: { latest, url, at: Date.now() } });
+    } catch {
+      /* offline / rate-limited — fall back to the cached value */
+    }
+  }
+  const updateAvailable = !!latest && isNewerVersion(latest, current);
+  try {
+    await chrome.action.setBadgeText({ text: updateAvailable ? "↑" : "" });
+    if (updateAvailable) await chrome.action.setBadgeBackgroundColor({ color: "#ff9345" });
+  } catch {
+    /* action badge unavailable */
+  }
+  return { updateAvailable, latest, current, url };
+}
+
+chrome.runtime.onStartup?.addListener(() => checkForUpdate(true).catch(() => {}));
+chrome.runtime.onInstalled?.addListener(() => checkForUpdate(true).catch(() => {}));
 
 // On startup, pull the mined tracking from the configured deck(s) so each browser
 // reflects what's in Anki (cross-device sync lives in Anki/AnkiWeb, not chrome.storage).
