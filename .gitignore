@@ -3,6 +3,7 @@ node_modules/
 
 # Build output (the unpacked extension is rebuilt with `npm run build`)
 dist/
+dist.zip
 *.tsbuildinfo
 
 # Logs
