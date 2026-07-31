@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>e2e auto test</title>
+    <style>
+      body { margin: 0; background: #000; }
+      video { width: 960px; height: 540px; display: block; margin: 40px auto; background: #111; }
+    </style>
+  </head>
+  <body>
+    <!-- muted + autoplay + loop so currentTime keeps cycling through the cues -->
+    <video id="v" src="test.webm" muted autoplay loop playsinline></video>
+  </body>
+</html>

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TANMA! Reader</title>
+    <style>
+      :root { color-scheme: dark; --accent: #ff9345; }
+      html, body { margin: 0; height: 100%; background: #0c0d10;
+        font-family: "Inter", "Noto Sans JP", "Yu Gothic", system-ui, sans-serif; color: #f3f3f7; }
+      body.tnm-root { display: flex; flex-direction: column; }
+
+      /* ---------------- header ---------------- */
+      header { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+        background: #14151a; border-bottom: 1px solid rgba(255,255,255,.08); flex: 0 0 auto; }
+      header .logo { width: 26px; height: 26px; }
+      header h1 { font-size: 15px; font-weight: 800; margin: 0; letter-spacing: .2px; }
+      #conn { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #9a9bab; }
+      #conn .dot { width: 9px; height: 9px; border-radius: 50%; background: #e5484d; }
+      #conn.-on .dot { background: #36c275; }
+      #ws-url { font: inherit; font-size: 12.5px; background: #1c1d24; color: #f3f3f7;
+        border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 5px 9px; width: 190px; }
+      #hook-filter, #name-hook { font: inherit; font-size: 12px; background: #1c1d24; color: #f3f3f7;
+        border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 5px 8px; max-width: 220px; }
+
+      /* speaker name chip attached to a dialogue line (from the "name hook" thread) */
+      .line-speaker { display: block; font-size: .5em; line-height: 1.4; font-weight: 700;
+        color: var(--accent); letter-spacing: .3px; }
+      header .spacer { flex: 1; }
+      header label.opt { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #9a9bab; cursor: pointer; user-select: none; }
+      header button { font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; border-radius: 8px;
+        padding: 6px 11px; border: 1px solid rgba(255,255,255,.14); background: #20222b; color: #f3f3f7; }
+      header button.primary { background: var(--accent); color: #1c1d22; border-color: transparent; }
+
+      /* ---------------- lines ---------------- */
+      #lines { flex: 1 1 auto; overflow-y: auto; padding: 18px clamp(16px, 8vw, 120px) 30vh; scroll-behavior: smooth; }
+      .line { position: relative; padding: 9px 12px 9px 14px; margin: 2px 0; border-radius: 10px;
+        font-size: var(--line-size, 26px); line-height: 1.9; }
+      .line:hover { background: rgba(255,255,255,.045); }
+      .line.-latest { background: rgba(255,147,69,.07); }
+      .line .meta { position: absolute; left: -8px; top: 50%; transform: translate(-100%, -50%);
+        font-size: 11px; color: #565866; white-space: nowrap; opacity: 0; }
+      .line:hover .meta { opacity: 1; }
+      #empty { color: #6f7180; font-size: 14px; line-height: 1.8; max-width: 560px; margin: 12vh auto 0; text-align: center; }
+      #empty code { background: #1c1d24; border-radius: 6px; padding: 1px 7px; font-size: 12.5px; }
+      #empty .big { font-size: 17px; font-weight: 700; color: #c9cad3; }
+
+      /* ---------------- footer stats ---------------- */
+      footer { flex: 0 0 auto; display: flex; gap: 18px; align-items: center; padding: 7px 16px;
+        background: #14151a; border-top: 1px solid rgba(255,255,255,.08); font-size: 12px; color: #9a9bab; }
+      footer b { color: #f3f3f7; font-variant-numeric: tabular-nums; }
+      footer .sizer { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+      footer input[type="range"] { accent-color: var(--accent); width: 110px; }
+
+      /* ---------------- settings popover ---------------- */
+      #settings-pop { position: fixed; top: 52px; right: 12px; z-index: 2500; width: 300px;
+        background: #16171d; border: 1px solid rgba(255,255,255,.12); border-radius: 12px;
+        padding: 12px 14px; box-shadow: 0 12px 32px rgba(0,0,0,.5); }
+      #settings-pop h3 { margin: 0 0 8px; font-size: 13px; }
+      #settings-pop .srow { display: flex; align-items: center; justify-content: space-between;
+        gap: 10px; padding: 6px 0; font-size: 13px; }
+      #settings-pop select { font: inherit; font-size: 12.5px; background: #1c1d24; color: #f3f3f7;
+        border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 4px 8px; }
+      #settings-pop .snote { margin: 6px 0 0; font-size: 11px; color: #6f7180; line-height: 1.5; }
+      .sw { position: relative; display: inline-block; width: 34px; height: 20px; flex: 0 0 auto; }
+      .sw input { opacity: 0; width: 0; height: 0; }
+      .sw i { position: absolute; inset: 0; border-radius: 20px; background: #33343e; transition: .15s; }
+      .sw i::after { content: ""; position: absolute; left: 3px; top: 3px; width: 14px; height: 14px;
+        border-radius: 50%; background: #f3f3f7; transition: .15s; }
+      .sw input:checked + i { background: var(--accent); }
+      .sw input:checked + i::after { transform: translateX(14px); }
+
+      /* per-line machine translation */
+      .line-tr { font-size: .55em; line-height: 1.5; color: #9a9bab; margin-top: 2px; }
+      body:not(.-show-tr) .line-tr { display: none; }
+
+      /* toast */
+      #toast { position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%); z-index: 3000; display: none;
+        background: rgba(20,22,28,.95); border: 1px solid rgba(255,255,255,.14); border-radius: 10px;
+        padding: 8px 14px; font-size: 13px; font-weight: 600; box-shadow: 0 6px 24px rgba(0,0,0,.4); max-width: 80vw; }
+    </style>
+  </head>
+  <!-- tnm-root + flags let overlay.css's token/lookup styles apply on this page -->
+  <body class="tnm-root -tnm-furigana -tnm-show-known-status">
+    <header>
+      <img class="logo" src="icons/icon-48.png" alt="" />
+      <h1>TANMA! Reader</h1>
+      <span id="conn"><span class="dot"></span><span id="conn-label">disconnected</span></span>
+      <input id="ws-url" spellcheck="false" title="tanma-hook / Textractor WebSocket URL" />
+      <button id="connect" class="primary">Connect</button>
+      <select id="hook-filter" title="Which hook thread to show — games emit several; pick the one with clean dialogue" style="display:none"></select>
+      <select id="name-hook" title="Which hook thread carries the speaker NAME — shown as a label on each dialogue line" style="display:none"></select>
+      <span class="spacer"></span>
+      <label class="opt" title="Ask tanma-hook for a game screenshot when mining"><input type="checkbox" id="opt-image" checked />Screenshot</label>
+      <label class="opt" title="Ask tanma-hook for the line's audio when mining"><input type="checkbox" id="opt-audio" checked />Audio</label>
+      <button id="clear" title="Clear all lines">Clear</button>
+      <button id="settings" title="Reader settings">⚙</button>
+    </header>
+
+    <div id="settings-pop" hidden>
+      <h3>Reader settings</h3>
+      <div class="srow"><span>Target language</span><select id="set-target"></select></div>
+      <div class="srow"><span>Furigana (readings)</span><label class="sw"><input type="checkbox" id="set-furi" /><i></i></label></div>
+      <div class="srow"><span>Color word status</span><label class="sw"><input type="checkbox" id="set-status" /><i></i></label></div>
+      <div class="srow"><span>Match multi-word expressions</span><label class="sw"><input type="checkbox" id="set-compound" /><i></i></label></div>
+      <div class="srow"><span>Machine translation</span><label class="sw"><input type="checkbox" id="set-mt" /><i></i></label></div>
+      <div class="srow" id="set-native-row"><span>Translation language</span><select id="set-native"></select></div>
+      <p class="snote">Translation uses the provider configured in Dashboard → Translation (Google by default).</p>
+    </div>
+
+    <div id="lines">
+      <div id="empty">
+        <p class="big">Waiting for text…</p>
+        <p>Start <b>tanma-hook</b> (or Textractor + its WebSocket plugin), attach it to your game,
+        then advance the game's text — lines appear here with furigana and click-to-look-up.
+        Mining a word asks tanma-hook for the game's screenshot and the line's audio.</p>
+        <p><code>plugins\tanma-hook &gt; easy_launcher.bat</code> → <code>list</code> → <code>attach 0</code></p>
+      </div>
+    </div>
+
+    <footer>
+      <span>Lines <b id="st-lines">0</b></span>
+      <span>Characters <b id="st-chars">0</b></span>
+      <span>Session <b id="st-time">0:00</b></span>
+      <span>Mined <b id="st-mined">0</b></span>
+      <span class="sizer">A<input id="size" type="range" min="16" max="44" step="1" value="26" />A</span>
+    </footer>
+
+    <div id="toast"></div>
+    <script type="module" src="assets/reader.js"></script>
+  </body>
+</html>

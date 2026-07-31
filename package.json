@@ -1,0 +1,26 @@
+{
+  "name": "tanma",
+  "private": true,
+  "version": "0.1.0",
+  "description": "TANMA! — an in-page learning subtitle overlay & subtitle browser for any video (Japanese-first).",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/node": "^20.12.12",
+    "playwright": "^1.60.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11",
+    "ws": "^8.21.0"
+  },
+  "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
+    "fflate": "^0.8.3",
+    "kuromoji": "^0.1.2"
+  }
+}

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TANMA! Player</title>
+    <style>
+      :root { color-scheme: dark; --accent: #ff9345; }
+      html, body { margin: 0; height: 100%; background: #0c0d10; overflow: hidden;
+        font-family: "Inter", system-ui, sans-serif; color: #f3f3f7; }
+      #tnm-player { position: fixed; inset: 0; width: 100vw; height: 100vh; background: #000; outline: none; }
+
+      /* Centered chooser shown until media is loaded. */
+      #drop { position: fixed; inset: 0; z-index: 2000; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 18px; text-align: center;
+        background: radial-gradient(120% 120% at 50% 30%, #16181f 0%, #0c0d10 70%); }
+      #drop.-hidden { display: none; }
+      #drop .logo { width: 56px; height: 56px; opacity: .95; }
+      #drop h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: .2px; }
+      #drop p { margin: 0; color: #9a9bab; font-size: 13px; max-width: 460px; line-height: 1.6; }
+      #drop .btns { display: flex; gap: 10px; margin-top: 4px; }
+      #drop button { font: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
+        border-radius: 10px; padding: 10px 16px; border: 1px solid rgba(255,255,255,.14); }
+      #drop .primary { background: var(--accent); color: #1c1d22; border-color: transparent; }
+      #drop .ghost { background: #20222b; color: #f3f3f7; }
+      #drop .exts { color: #6f7180; font-size: 11.5px; }
+
+      /* Big center play overlay (shown while paused). */
+      #big-play { position: fixed; inset: 0; z-index: 2150; display: none; align-items: center; justify-content: center; pointer-events: none; }
+      #big-play.-show { display: flex; }
+      #big-play .circle { width: 84px; height: 84px; border-radius: 50%; background: rgba(0,0,0,.5);
+        display: flex; align-items: center; justify-content: center; pointer-events: auto; cursor: pointer; transition: background .15s; }
+      #big-play .circle:hover { background: rgba(0,0,0,.7); }
+      #big-play svg { width: 42px; height: 42px; fill: #fff; margin-left: 4px; }
+
+      /* Custom Netflix-style control bar (replaces native <video> controls). */
+      #player-ui { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2200; padding: 36px 20px 14px;
+        display: flex; flex-direction: column; gap: 6px; transition: opacity .25s ease;
+        background: linear-gradient(to top, rgba(0,0,0,.88) 0%, rgba(0,0,0,.5) 45%, transparent 100%); }
+      #player-ui.-hidden { opacity: 0; pointer-events: none; }
+
+      #scrubber { position: relative; height: 5px; margin: 2px 0 4px; background: rgba(255,255,255,.28); border-radius: 3px; cursor: pointer; }
+      #scrubber:hover, #scrubber.-active { height: 7px; }
+      #sb-buffered, #sb-played { position: absolute; left: 0; top: 0; height: 100%; border-radius: 3px; }
+      #sb-buffered { background: rgba(255,255,255,.4); width: 0; }
+      #sb-played { background: var(--accent); width: 0; }
+      #sb-thumb { position: absolute; top: 50%; left: 0; width: 13px; height: 13px; border-radius: 50%;
+        background: var(--accent); transform: translate(-50%, -50%); box-shadow: 0 0 6px rgba(0,0,0,.55); opacity: 0; transition: opacity .15s; }
+      #scrubber:hover #sb-thumb, #scrubber.-active #sb-thumb { opacity: 1; }
+
+      #ctrl-row { display: flex; align-items: center; gap: 14px; color: #fff; }
+      .pbtn { background: none; border: none; color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 4px; border-radius: 6px; line-height: 0; }
+      .pbtn:hover { color: var(--accent); }
+      .pbtn svg { width: 22px; height: 22px; }
+      #vol-wrap { display: flex; align-items: center; gap: 6px; }
+      #c-vol { width: 84px; accent-color: var(--accent); cursor: pointer; }
+      .ptime { font: 600 13px/1 "Inter", system-ui, sans-serif; font-variant-numeric: tabular-nums; color: #e6e6e6; }
+      .spacer { flex: 1; }
+
+      /* Embedded-subtitle track picker (appears after extracting from an MKV). */
+      #sub-selector { display: none; align-items: center; gap: 8px; font: 600 12px/1.2 "Inter", system-ui, sans-serif; }
+      #sub-selector.-show { display: flex; }
+      #sub-selector .lbl { color: #cfcfd6; }
+      #sub-track { background: rgba(40,42,52,.92); color: #f3f3f7; border: 1px solid rgba(255,255,255,.18); border-radius: 8px;
+        padding: 4px 8px; font: inherit; max-width: 320px; cursor: pointer; }
+      #sub-track:focus { outline: none; border-color: var(--accent); }
+
+      /* Translucent overlay while dragging files anywhere over the window. */
+      #dragmask { position: fixed; inset: 0; z-index: 2300; display: none; align-items: center; justify-content: center;
+        background: rgba(255,147,69,.12); border: 3px dashed rgba(255,147,69,.7); box-sizing: border-box;
+        font-size: 20px; font-weight: 800; color: #ffb37a; pointer-events: none; }
+      #dragmask.-show { display: flex; }
+
+      .hidden-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <video id="tnm-player" playsinline></video>
+
+    <div id="big-play"></div>
+
+    <div id="player-ui" class="-hidden">
+      <div id="scrubber"><div id="sb-buffered"></div><div id="sb-played"></div><div id="sb-thumb"></div></div>
+      <div id="ctrl-row">
+        <button id="c-play" class="pbtn" title="Play / pause (space)"></button>
+        <button id="c-back" class="pbtn" title="Back 10s (←)"></button>
+        <button id="c-fwd" class="pbtn" title="Forward 10s (→)"></button>
+        <div id="vol-wrap">
+          <button id="c-mute" class="pbtn" title="Mute (m)"></button>
+          <input id="c-vol" type="range" min="0" max="1" step="0.05" value="1" title="Volume" />
+        </div>
+        <span id="c-time" class="ptime">0:00 / 0:00</span>
+        <div class="spacer"></div>
+        <div id="sub-selector"><span class="lbl">Subs</span><select id="sub-track"></select></div>
+        <button id="c-fs" class="pbtn" title="Fullscreen (f)"></button>
+      </div>
+    </div>
+
+    <div id="drop">
+      <img class="logo" src="icons/icon-128.png" alt="" />
+      <h1>TANMA! Player</h1>
+      <p>Drop a <b>video</b> (and a <b>subtitle</b>) here, or choose them below. Click words for
+        readings &amp; definitions, mark them Known/Learning, and mine to Anki — just like the in-page overlay.</p>
+      <div class="btns">
+        <button class="primary" id="pick-video">Choose video / audio</button>
+        <button class="ghost" id="pick-sub">Choose subtitles</button>
+      </div>
+      <div class="exts">video: mp4 · webm · ogg · mov · m4v &nbsp;|&nbsp; audio: mp3 · m4a · wav &nbsp;|&nbsp; subs: srt · ass · vtt</div>
+      <div class="exts">drop an <b>.mkv</b> and its embedded subtitles are extracted automatically (even if the video won't play)</div>
+    </div>
+
+    <div id="dragmask">Drop to load</div>
+
+    <input id="video-input" class="hidden-file" type="file" accept="video/*,audio/*,.mkv,.m4v,.ogv" />
+    <input id="sub-input" class="hidden-file" type="file" accept=".srt,.vtt,.ass,.ssa,.txt" />
+
+    <script type="module" src="assets/player.js"></script>
+  </body>
+</html>

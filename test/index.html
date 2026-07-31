@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TANMA! Subtitles (clone) — local test</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background: #111; color: #eee; max-width: 880px; margin: 0 auto; padding: 24px; }
+      h1 { font-size: 20px; }
+      video { width: 100%; background: #000; border-radius: 8px; }
+      .card { background: #1c1d22; border: 1px solid #333; border-radius: 10px; padding: 16px; margin: 16px 0; }
+      ol { line-height: 1.7; }
+      code { background: #32333c; padding: 1px 6px; border-radius: 4px; }
+      input[type="file"] { color: #bbb; }
+      a { color: #ff9345; }
+    </style>
+  </head>
+  <body>
+    <h1>🎬 TANMA! Subtitles (clone) — local test page</h1>
+
+    <div class="card">
+      <p><b>1.</b> Pick any local video file (mp4/webm). Or it will try a sample clip from the web.</p>
+      <input id="picker" type="file" accept="video/*" />
+    </div>
+
+    <video id="v" controls crossorigin="anonymous"></video>
+
+    <div class="card">
+      <b>How to test</b>
+      <ol>
+        <li>Load the extension (see the project README) and make sure it's enabled.</li>
+        <li>The floating <b>toolbar</b> should appear near the top of this page.</li>
+        <li>Click the <b>⬆ import</b> button on the toolbar and choose
+          <code>test/sample.ja.srt</code> (Japanese), then press play.</li>
+        <li>Japanese words get <b>furigana</b>; click a word for a definition and to mark it
+          Known / Learning. Use the <b>☰ subtitle browser</b> and <b>⚙ settings</b>.</li>
+        <li>Keys: <code>A</code>/<code>D</code> = prev/next line, <code>S</code> = replay line.</li>
+      </ol>
+      <p>Tip: serve this folder over http (<code>npx serve</code>) so the content script runs,
+        or enable “Allow access to file URLs” for the extension if opening via <code>file://</code>.</p>
+    </div>
+
+    <script>
+      const v = document.getElementById("v");
+      // Try a public sample so there's something to play out of the box.
+      v.src = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+      document.getElementById("picker").addEventListener("change", (e) => {
+        const f = e.target.files[0];
+        if (f) v.src = URL.createObjectURL(f);
+      });
+    </script>
+  </body>
+</html>

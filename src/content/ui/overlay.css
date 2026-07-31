@@ -1,0 +1,1002 @@
+/* All UI lives inside a shadow root, so these styles are isolated from the page. */
+:host {
+  all: initial;
+}
+* {
+  box-sizing: border-box;
+  font-family: "Inter", "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic",
+    "Segoe UI", system-ui, sans-serif;
+}
+
+.tnm-root {
+  --tnm-accent: #ff9345;
+  --tnm-accent-700: #e06f1f;
+  --tnm-bg: #1c1d22;
+  --tnm-bg-2: #26272e;
+  --tnm-bg-3: #32333c;
+  --tnm-text: #f3f3f7;
+  --tnm-muted: #9a9bab;
+  --tnm-unknown: #4aa3ff;
+  --tnm-learning: #ffb020;
+  --tnm-known: #36c275;
+  --tnm-line: rgba(255, 255, 255, 0.1);
+  color: var(--tnm-text);
+}
+
+/* The fixed layer that covers the viewport; children opt back into pointer events. */
+.tnm-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483640;
+  pointer-events: none;
+  font-size: 16px;
+  /* Promote to a stable compositor layer that persistently overlaps the video. This keeps the
+   * browser compositing the video consistently instead of flipping it on/off a hardware overlay
+   * plane on play/pause (which flashes the screen — Windows MPO). It doesn't fix the OS-level
+   * flicker on fullscreen enter/exit, but it stops TANMA from poking the plane during playback. */
+  transform: translateZ(0);
+}
+.tnm-layer > * {
+  pointer-events: auto;
+}
+
+/* ============================ Subtitle overlay ============================ */
+/* Root is positioned by the sync loop to exactly cover the video rect. */
+.TnmSubs {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: none;
+  overflow: hidden;
+}
+.TnmSubs__container {
+  position: relative;
+  width: 100%;
+  max-width: 1100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0 24px;
+}
+
+.TnmSubs__targetSubs,
+.TnmSubs__secondarySubs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: center;
+  text-wrap: balance;
+  pointer-events: auto;
+  cursor: grab;
+}
+.TnmSubs__targetSubs {
+  font-size: calc(2em * var(--tnm-size, 1));
+  font-weight: 700;
+  line-height: 1.5;
+}
+.TnmSubs__secondarySubs {
+  font-size: calc(1.25em * var(--tnm-size, 1));
+  font-weight: 500;
+  color: #e7e7ef;
+  opacity: 0.95;
+}
+.TnmSubs__targetSubs__line,
+.TnmSubs__secondarySubs__line {
+  display: block;
+}
+
+/* text shadow/outline + optional background plate so subs read over any video.
+   Strength is driven by --tnm-sub-shadow (0 = none, 1 = default, 2 = heavy);
+   --tnm-sub-bg (0–1) adds a dark plate behind the text for bright backgrounds. */
+.tnm-sentence,
+.TnmSubs__secondarySubs__line {
+  --ss: var(--tnm-sub-shadow, 1);
+  --sa: calc(0.9 * min(var(--ss), 1));
+  text-shadow:
+    0 calc(2px * var(--ss)) calc(6px * var(--ss)) rgba(0, 0, 0, var(--sa)),
+    0 0 calc(4px * var(--ss)) rgba(0, 0, 0, var(--sa)),
+    -1px -1px 0 rgba(0, 0, 0, calc(0.67 * var(--sa))),
+    1px 1px 0 rgba(0, 0, 0, calc(0.67 * var(--sa)));
+}
+/* dark plate hugging the text (inline so it wraps per line, not full-width) */
+.tnm-sentence,
+.TnmSubs__secondarySubs__text {
+  background: rgba(0, 0, 0, var(--tnm-sub-bg, 0));
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0.04em 0.28em;
+  border-radius: 5px;
+}
+.TnmSubs__secondarySubs__text {
+  display: inline;
+}
+
+/* obscuring modes for listening practice */
+.TnmSubs__targetSubs.-tnm-blur .tnm-sentence,
+.TnmSubs__secondarySubs.-tnm-blur {
+  filter: blur(8px);
+  transition: filter 0.12s;
+}
+.TnmSubs__targetSubs.-tnm-blur:hover .tnm-sentence,
+.TnmSubs__secondarySubs.-tnm-blur:hover {
+  filter: none;
+}
+.TnmSubs__targetSubs.-tnm-hide .tnm-sentence,
+.TnmSubs__secondarySubs.-tnm-hide {
+  opacity: 0;
+}
+.TnmSubs__targetSubs.-tnm-hide:hover .tnm-sentence,
+.TnmSubs__secondarySubs.-tnm-hide:hover {
+  opacity: 1;
+}
+
+/* ============================ Word tokens ============================ */
+.tnm-sentence {
+  display: inline;
+}
+.tnm-token {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.1s;
+}
+.tnm-token .-tnm-content {
+  position: relative;
+}
+/* status underline */
+.tnm-root.-tnm-show-known-status .tnm-token .-tnm-content::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -0.12em;
+  height: 0.1em;
+  border-radius: 5px;
+  background: transparent;
+}
+.tnm-root.-tnm-show-known-status .tnm-token[data-tnm-known-status="UNKNOWN"] .-tnm-content::after {
+  background: var(--tnm-unknown);
+}
+.tnm-root.-tnm-show-known-status .tnm-token[data-tnm-known-status="LEARNING"] .-tnm-content::after {
+  background: var(--tnm-learning);
+}
+.tnm-root.-tnm-show-known-status .tnm-token[data-tnm-known-status="KNOWN"] .-tnm-content::after,
+.tnm-root.-tnm-show-known-status .tnm-token[data-tnm-known-status="IGNORED"] .-tnm-content::after {
+  background: transparent;
+}
+.tnm-token.-tnm-word:hover,
+.tnm-token.-tnm-active {
+  background: rgba(255, 147, 69, 0.35);
+}
+.tnm-token.-tnm-not-word {
+  cursor: default;
+}
+
+/* furigana ruby */
+ruby.tnm-reading {
+  ruby-align: center;
+}
+ruby.tnm-reading rt {
+  font-size: 0.5em;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.95;
+  user-select: none;
+}
+.tnm-root:not(.-tnm-furigana) ruby.tnm-reading rt {
+  visibility: hidden;
+}
+
+/* ============================ TnmBar ============================ */
+/* Docked full-width bar across the top of the video (TANMA!-style). */
+.TnmBar {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 46px;
+  padding: 0 10px;
+  background: var(--tnm-bg);
+  border-bottom: 1px solid var(--tnm-line);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  user-select: none;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.TnmBar.-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.TnmBar__leftSide,
+.TnmBar__rightSide {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.TnmBar__rightSide {
+  flex-wrap: nowrap;
+}
+.TnmBar__brand {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--tnm-accent);
+  letter-spacing: 0.01em;
+  padding: 0 4px;
+}
+.TnmBar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 3px;
+  background: var(--tnm-line);
+}
+.tnm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tnm-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s;
+}
+.tnm-btn:hover {
+  background: var(--tnm-bg-3);
+}
+.tnm-btn.-active {
+  background: var(--tnm-accent);
+  color: #1c1209;
+}
+.tnm-btn.-icon {
+  font-size: 16px;
+}
+.tnm-btn svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.TnmBar__knownWords {
+  font-variant-numeric: tabular-nums;
+  color: var(--tnm-muted);
+  padding: 0 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.TnmBar__offset {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.TnmBar__offset .tnm-btn {
+  min-width: 26px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.TnmBar__offset__slider {
+  width: 140px;
+  accent-color: var(--tnm-accent);
+  cursor: pointer;
+}
+.TnmBar__offset__val {
+  width: 48px;
+  flex: 0 0 auto;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--tnm-muted);
+  background: var(--tnm-bg-2, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--tnm-line, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  padding: 3px 4px;
+}
+.TnmBar__offset__val::-webkit-outer-spin-button,
+.TnmBar__offset__val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.TnmBar__offset__val { -moz-appearance: textfield; }
+.TnmBar__offset__val:focus { outline: none; border-color: var(--tnm-accent); color: var(--tnm-text); }
+.TnmBar__offset__val.-active { color: var(--tnm-accent); border-color: var(--tnm-accent); }
+.TnmBar__offset__unit { font-size: 11px; font-weight: 700; color: var(--tnm-muted); margin-left: -1px; }
+.TnmBar__knownWords b {
+  color: var(--tnm-known);
+}
+
+/* tooltip */
+.tnm-tip {
+  position: relative;
+}
+.tnm-tip[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #000;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ============================ Popover (settings) ============================ */
+.tnm-popover {
+  position: absolute;
+  width: 320px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--tnm-bg);
+  border: 1px solid var(--tnm-line);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  padding: 14px 16px;
+  font-size: 13px;
+}
+.tnm-popover h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.tnm-field {
+  margin: 12px 0;
+}
+.tnm-field__label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  color: var(--tnm-muted);
+  font-weight: 600;
+}
+.tnm-field__label .val {
+  color: var(--tnm-text);
+  font-variant-numeric: tabular-nums;
+}
+.tnm-numbox { display: inline-flex; align-items: center; gap: 3px; color: var(--tnm-text); }
+.tnm-numbox .num {
+  width: 56px;
+  text-align: right;
+  background: var(--tnm-bg-2, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--tnm-line, rgba(255, 255, 255, 0.14));
+  border-radius: 6px;
+  color: var(--tnm-text);
+  padding: 2px 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+.tnm-numbox .num::-webkit-outer-spin-button,
+.tnm-numbox .num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tnm-numbox .num:focus { outline: none; border-color: var(--tnm-accent); }
+.tnm-numbox .suffix { color: var(--tnm-muted); font-size: 12px; }
+.tnm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+}
+.tnm-row + .tnm-row {
+  border-top: 1px solid var(--tnm-line);
+}
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--tnm-accent);
+}
+select,
+.tnm-select {
+  background: var(--tnm-bg-2);
+  color: var(--tnm-text);
+  border: 1px solid var(--tnm-line);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+/* toggle switch */
+.tnm-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+.tnm-switch input {
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.tnm-switch .track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--tnm-bg-3);
+  transition: background 0.15s;
+  pointer-events: none;
+}
+.tnm-switch .thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+  pointer-events: none;
+}
+.tnm-switch input:checked ~ .track {
+  background: var(--tnm-accent);
+}
+.tnm-switch input:checked ~ .thumb {
+  transform: translateX(18px);
+}
+
+/* ============================ Subtitle browser ============================ */
+.TnmBrowser {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(20, 21, 26, 0.96);
+  backdrop-filter: blur(6px);
+  border-left: 1px solid var(--tnm-line);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.4);
+}
+.TnmBrowser__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--tnm-line);
+}
+.TnmBrowser__header__title {
+  font-weight: 700;
+  font-size: 14px;
+}
+.TnmBrowser__filters {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--tnm-line);
+}
+.TnmBrowser__filters input {
+  flex: 1;
+  background: var(--tnm-bg-2);
+  border: 1px solid var(--tnm-line);
+  border-radius: 8px;
+  color: var(--tnm-text);
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.TnmBrowser__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+}
+.TnmBrowser__list__item {
+  display: flex;
+  gap: 8px;
+  padding: 8px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.TnmBrowser__list__item:hover {
+  background: var(--tnm-bg-2);
+}
+.TnmBrowser__list__item.-active {
+  background: rgba(255, 147, 69, 0.16);
+  border-color: var(--tnm-accent);
+}
+/* Lines already mined to Anki get a ✓ next to the timestamp. */
+.TnmBrowser__list__item__time { position: relative; }
+.TnmBrowser__list__item.-mined .TnmBrowser__list__item__time::after {
+  content: "✓";
+  display: block;
+  color: var(--tnm-known);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+/* A word whose lemma already has a card: small "mined" dot above it. */
+.tnm-token[data-tnm-mined="1"] .tnm-surface {
+  position: relative;
+}
+.tnm-token[data-tnm-mined="1"] .tnm-surface::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tnm-known);
+}
+.TnmBrowser__list__item__time {
+  flex: 0 0 auto;
+  color: var(--tnm-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+  min-width: 42px;
+}
+.TnmBrowser__list__item__content {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.4;
+  /* Allow drag-selecting a sub-piece of a word to look it up (furigana rt stays
+     user-select:none, so it's excluded from the selected text). Keep the pointer
+     cursor though — the row is clickable (seek) and words are clickable (look-up). */
+  user-select: text;
+  cursor: pointer;
+}
+.TnmBrowser__list__item__content .sec {
+  display: block;
+  color: var(--tnm-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.TnmBrowser__list__item__bookmark {
+  flex: 0 0 auto;
+  color: var(--tnm-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+.TnmBrowser__list__item__bookmark.-on {
+  color: var(--tnm-learning);
+}
+/* Sync-timing button: quiet until you hover the row, then aligns this line to the playhead. */
+.TnmBrowser__list__item__sync {
+  flex: 0 0 auto;
+  color: var(--tnm-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: flex-start;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+.TnmBrowser__list__item__sync svg {
+  width: 15px;
+  height: 15px;
+}
+.TnmBrowser__list__item:hover .TnmBrowser__list__item__sync {
+  opacity: 0.7;
+}
+.TnmBrowser__list__item__sync:hover {
+  color: var(--tnm-accent);
+  opacity: 1;
+}
+.TnmBrowser__empty {
+  color: var(--tnm-muted);
+  text-align: center;
+  padding: 30px 16px;
+  font-size: 13px;
+}
+
+/* ============================ Lookup popup ============================ */
+.tnm-lookup {
+  position: absolute;
+  width: 360px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--tnm-bg);
+  border: 1px solid var(--tnm-line);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.tnm-lookup__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+/* The card scrolls (overflow), which clips a tooltip drawn ABOVE a head button. Flip the head
+   tooltips to render below + right-aligned so they stay inside the card instead of being cut off. */
+.tnm-lookup__head .tnm-tip[data-tip]:hover::after {
+  bottom: auto;
+  top: calc(100% + 8px);
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.tnm-lookup__speak {
+  margin-left: auto;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  color: var(--tnm-accent);
+}
+/* Mine button turns green with a ✓ once the word is already in the deck (mined or synced). */
+.tnm-lookup__mine.-mined {
+  color: #34c759;
+}
+/* Kana display toggle (あ⇄ア) — readings shown in hiragana or katakana (display only). */
+.tnm-lookup__kana {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  font-size: 15px;
+  font-weight: 700;
+}
+/* Pitch accent: mora string with the high segment overlined; notch marks the downstep. */
+.tnm-lookup__pitch {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 2px 0 6px;
+}
+.tnm-lookup__pitch__label {
+  font-size: 11px;
+  color: var(--tnm-muted);
+}
+.tnm-pitch {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 13px;
+}
+.tnm-pitch .m {
+  padding: 1px 1px 0;
+  border-top: 2px solid transparent;
+}
+.tnm-pitch .m.-h {
+  border-top-color: var(--tnm-accent);
+}
+.tnm-pitch .m.-d {
+  border-right: 2px solid var(--tnm-accent);
+}
+.tnm-pitch .n {
+  margin-left: 5px;
+  font-size: 11px;
+  color: var(--tnm-muted);
+}
+/* Manual reading switcher: one chip per candidate reading (shown when the word has several). */
+.tnm-lookup__readings {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 6px;
+}
+.tnm-lookup__readings__label {
+  font-size: 11px;
+  color: var(--tnm-muted);
+}
+.tnm-lookup__readings .tnm-btn.-reading {
+  padding: 2px 9px;
+  font-size: 13px;
+}
+.tnm-lookup__term {
+  font-size: 22px;
+  font-weight: 700;
+}
+.tnm-lookup__reading {
+  color: var(--tnm-accent);
+  font-size: 14px;
+}
+/* Highlight box over the grabbed sub-piece during hold-key + hover (overlaps the word's
+   own hover highlight so you see exactly what will be looked up / mined). */
+.tnm-sub-hl {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  background: rgba(255, 147, 69, 0.42);
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(255, 147, 69, 0.7);
+  transition: left 0.06s linear, top 0.06s linear, width 0.06s linear;
+}
+
+/* Jimaku subtitle search panel (centered modal). */
+.tnm-jimaku {
+  position: fixed;
+  top: 10vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 440px;
+  max-width: calc(100vw - 24px);
+  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(20, 21, 26, 0.98);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--tnm-line);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  z-index: 2147483646;
+  font-size: 14px;
+  color: var(--tnm-text);
+}
+.tnm-jimaku__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--tnm-line);
+}
+.tnm-jimaku__title { font-weight: 700; font-size: 15px; }
+.tnm-jimaku__searchrow { display: flex; gap: 8px; padding: 12px 14px 6px; }
+.tnm-jimaku__search,
+.tnm-jimaku__ep {
+  background: var(--tnm-bg-2);
+  border: 1px solid var(--tnm-line);
+  border-radius: 8px;
+  color: var(--tnm-text);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.tnm-jimaku__search { flex: 1; }
+.tnm-jimaku__ep { flex: 0 0 58px; width: 58px; text-align: center; -moz-appearance: textfield; }
+.tnm-jimaku__ep::-webkit-outer-spin-button,
+.tnm-jimaku__ep::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tnm-btn.-primary {
+  background: var(--tnm-accent);
+  color: #1c1d22;
+  border: none;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0 14px;
+  cursor: pointer;
+}
+.tnm-jimaku__status { padding: 0 14px 8px; color: var(--tnm-muted); font-size: 12px; }
+.tnm-jimaku__body { overflow-y: auto; padding: 0 8px 10px; }
+.tnm-jimaku__item,
+.tnm-jimaku__file {
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.tnm-jimaku__item:hover,
+.tnm-jimaku__file:not(.-disabled):hover { background: var(--tnm-bg-2); border-color: var(--tnm-line); }
+.tnm-jimaku__item__name { font-weight: 600; }
+.tnm-jimaku__item__sub { color: var(--tnm-muted); font-size: 12px; margin-top: 2px; }
+.tnm-jimaku__file { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.tnm-jimaku__file.-disabled { opacity: 0.45; cursor: default; }
+.tnm-jimaku__file.-match { border-color: var(--tnm-accent); background: color-mix(in srgb, var(--tnm-accent) 12%, transparent); }
+.tnm-jimaku__file.-loaded { border-color: var(--tnm-accent); background: color-mix(in srgb, var(--tnm-accent) 28%, transparent); }
+.tnm-jimaku__file__name { word-break: break-all; }
+.tnm-jimaku__file__size { flex: 0 0 auto; color: var(--tnm-muted); font-size: 12px; }
+.tnm-jimaku__back { background: none; border: none; color: var(--tnm-accent); cursor: pointer; font-size: 13px; padding: 6px 4px 10px; }
+.tnm-jimaku__showall { background: none; border: none; color: var(--tnm-muted); cursor: pointer; font-size: 12px; padding: 4px 10px 8px; text-decoration: underline; }
+
+/* Mining queue panel (reuses .tnm-jimaku shell) */
+.tnm-queue { width: 420px; }
+.tnm-queue__foot { display: flex; gap: 8px; padding: 10px 14px 12px; border-top: 1px solid var(--tnm-line); }
+.tnm-queue__foot .tnm-btn { flex: 0 0 auto; height: 34px; }
+.tnm-queue__foot .tnm-btn.-primary { flex: 1; }
+.tnm-queue__foot .tnm-btn:not(.-primary) { border: 1px solid var(--tnm-line); border-radius: 8px; background: var(--tnm-bg-2); color: var(--tnm-text); padding: 0 14px; cursor: pointer; }
+.tnm-queue__foot .tnm-btn[disabled] { opacity: 0.45; pointer-events: none; }
+.tnm-queue__row { cursor: default; }
+.tnm-queue__row__text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tnm-queue__row__word { font-weight: 700; }
+.tnm-queue__row__snip { color: var(--tnm-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.tnm-queue__row__del { flex: 0 0 auto; width: 30px; height: 30px; color: var(--tnm-muted); }
+.tnm-queue__row__del:hover { color: #ff5a5a; }
+
+/* Look-up queue button (in the mining queue when highlighted) */
+.tnm-lookup__queue.-mined { color: var(--tnm-accent); }
+
+/* Toolbar queue button + count badge */
+.TnmBar__queue { position: relative; }
+.TnmBar__queue.-has { color: var(--tnm-accent); }
+.TnmBar__queue__badge:empty { display: none; }
+.TnmBar__queue__badge {
+  position: absolute; top: -2px; right: -2px; min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: 8px; background: var(--tnm-accent); color: #1c1d22; font-size: 10px; font-weight: 800;
+  line-height: 15px; text-align: center; box-sizing: border-box;
+}
+.tnm-jimaku__showall:hover { color: var(--tnm-text); }
+
+/* The looked-up word, with okurigana-aware furigana above the kanji. */
+.tnm-lookup__word {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.tnm-lookup__word ruby rt {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tnm-accent);
+  user-select: none;
+}
+/* The exact text selected in the sentence, when it differs from the word. */
+.tnm-lookup__selection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.tnm-lookup__selection__label {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tnm-muted);
+  border: 1px solid var(--tnm-line);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+.tnm-lookup__selection__text ruby rt {
+  font-size: 10px;
+  color: var(--tnm-muted);
+  user-select: none;
+}
+.tnm-lookup__status {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+.tnm-lookup__status .tnm-btn {
+  flex: 1;
+  height: 30px;
+  border: 1px solid var(--tnm-line);
+  font-size: 12px;
+}
+.tnm-lookup__status .tnm-btn.-sel[data-s="UNKNOWN"] {
+  background: var(--tnm-unknown);
+  color: #04203f;
+}
+.tnm-lookup__status .tnm-btn.-sel[data-s="LEARNING"] {
+  background: var(--tnm-learning);
+  color: #3a2600;
+}
+.tnm-lookup__status .tnm-btn.-sel[data-s="KNOWN"] {
+  background: var(--tnm-known);
+  color: #04200f;
+}
+.tnm-lookup__sense {
+  margin: 6px 0;
+  padding-left: 18px;
+  position: relative;
+}
+.tnm-lookup__sense .pos {
+  color: var(--tnm-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+.tnm-lookup__sense ol {
+  margin: 2px 0;
+  padding-left: 16px;
+}
+.tnm-lookup__src {
+  color: var(--tnm-muted);
+  font-size: 11px;
+  margin-top: 8px;
+  text-align: right;
+}
+.tnm-lookup__loading,
+.tnm-lookup__error {
+  color: var(--tnm-muted);
+  padding: 8px 0;
+}
+.tnm-lookup__online {
+  margin-top: 4px;
+}
+.tnm-lookup__online .tnm-lookup__loading {
+  font-size: 12px;
+  padding: 6px 0;
+}
+
+/* file input is hidden; triggered programmatically */
+.tnm-hidden-file {
+  display: none;
+}
+
+/* merged lookup: frequency badges, dictionary sections, tags, kanji */
+.tnm-lookup__freq {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 6px;
+}
+.tnm-freq {
+  font-size: 11px;
+  font-weight: 700;
+  background: #2b3a52;
+  color: #9fc7ff;
+  padding: 2px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.tnm-lookup__section {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--tnm-line);
+}
+.tnm-lookup__section__title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tnm-accent);
+  margin-bottom: 5px;
+}
+.tnm-lookup__entry {
+  margin: 6px 0;
+}
+.tnm-lookup__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 3px 0;
+}
+.tnm-tag {
+  font-size: 10px;
+  color: var(--tnm-muted);
+  background: var(--tnm-bg-3);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+.tnm-gloss {
+  margin: 2px 0;
+  padding-left: 18px;
+}
+.tnm-gloss li {
+  margin: 2px 0;
+}
+.tnm-gloss a {
+  color: var(--tnm-accent);
+}
+.tnm-kanji {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  align-items: flex-start;
+}
+.tnm-kanji__char {
+  font-size: 28px;
+  line-height: 1;
+}
+.tnm-kanji__info {
+  font-size: 12px;
+  color: var(--tnm-muted);
+}
+.tnm-kanji__mean {
+  color: var(--tnm-text);
+  margin-top: 2px;
+}
+
+.tnm-toast {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--tnm-bg);
+  border: 1px solid var(--tnm-line);
+  color: var(--tnm-text);
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>fake youtube watch layout</title>
+    <style>
+      body { margin: 0; background: #0f0f0f; color: #fff; font-family: sans-serif; }
+      #masthead { height: 56px; background: #212121; position: sticky; top: 0; z-index: 100; display: flex; align-items: center; padding: 0 16px; }
+      ytd-watch-flexy { display: block; padding: 24px; }
+      ytd-watch-flexy #columns { display: flex; gap: 24px; max-width: 1754px; margin: 0 auto; align-items: flex-start; }
+      ytd-watch-flexy #primary { flex: 1 1 auto; min-width: 0; }
+      ytd-watch-flexy #primary-inner { width: 100%; }
+      /* #player + #movie_player mimic YouTube: a fixed px size set "by JS", NOT
+         responsive — so the test exercises our force-fill CSS, not CSS that would
+         shrink on its own. */
+      ytd-watch-flexy #player { width: 1280px; height: 720px; }
+      ytd-watch-flexy #movie_player { position: relative; width: 1280px; height: 720px; background: #000; }
+      ytd-watch-flexy #movie_player video { width: 1280px; height: 720px; display: block; }
+      ytd-watch-flexy #below { height: 400px; background: #181818; margin-top: 12px; }
+      ytd-watch-flexy #secondary { flex: 0 0 402px; width: 402px; height: 600px; background: #181818; }
+      /* full-bleed container holds the player in theater mode. Like real YouTube,
+         the player spans the FULL width (video letterboxed inside), so the dock
+         must shrink it to make room. */
+      ytd-watch-flexy #full-bleed-container { width: 100%; display: none; }
+      ytd-watch-flexy[theater] #full-bleed-container { display: block; }
+      ytd-watch-flexy[theater] #full-bleed-container #movie_player { width: 100% !important; height: 562px !important; }
+    </style>
+  </head>
+  <body>
+    <div id="masthead">YouTube (fake)</div>
+    <ytd-watch-flexy class="style-scope">
+      <div id="full-bleed-container" class="style-scope ytd-watch-flexy"></div>
+      <div id="columns" class="style-scope ytd-watch-flexy">
+        <div id="primary" class="style-scope ytd-watch-flexy">
+          <div id="primary-inner" class="style-scope ytd-watch-flexy">
+            <div id="player" class="style-scope ytd-watch-flexy">
+              <div id="movie_player">
+                <video id="v" src="test.webm" muted autoplay loop playsinline></video>
+                <!-- mimics YouTube's control bar: sized "by JS" to the OLD wide
+                     player (1256px), so it overflows a shrunk player unless refit. -->
+                <div class="ytp-chrome-bottom" style="position:absolute;bottom:0;left:12px;width:1256px;height:40px;background:rgba(255,80,80,.4);"></div>
+              </div>
+            </div>
+            <div id="below" class="style-scope ytd-watch-flexy">video info / comments</div>
+          </div>
+        </div>
+        <div id="secondary" class="style-scope ytd-watch-flexy">chat / related</div>
+      </div>
+    </ytd-watch-flexy>
+    <script>
+      // Mimic YouTube theater: render the video in #full-bleed-container (move
+      // #movie_player there) and collapse the in-column #player to 0×0. Restore on
+      // exit. This is the structure the dock's theater branch targets.
+      const flexy = document.querySelector("ytd-watch-flexy");
+      const fullBleed = document.getElementById("full-bleed-container");
+      const player = document.getElementById("player");
+      function relocate() {
+        const mp = document.getElementById("movie_player");
+        if (!mp) return;
+        if (flexy.hasAttribute("theater")) {
+          if (!fullBleed.contains(mp)) fullBleed.appendChild(mp);
+          player.style.height = "0"; // collapsed empty slot, like real YouTube
+        } else {
+          if (!player.contains(mp)) player.appendChild(mp);
+          player.style.height = "";
+        }
+      }
+      new MutationObserver(relocate).observe(flexy, { attributes: true, attributeFilter: ["theater"] });
+    </script>
+  </body>
+</html>
