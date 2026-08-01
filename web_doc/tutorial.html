@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setup guide — TANMA!</title>
+  <meta name="description" content="Full setup tutorial for TANMA!: install the extension, add a dictionary, and wire up Anki (AnkiConnect + the lapis-simplified note type) — step by step until you mine your first card." />
+  <link rel="icon" href="assets/favicon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ============================ NAV ============================ -->
+  <header class="nav" id="top">
+    <div class="wrap nav__inner">
+      <a class="brand" href="index.html">
+        <img src="assets/mascot.png" alt="TANMA mascot" class="brand__logo" />
+        <span class="brand__name">TANMA<span class="brand__bang">!</span></span>
+      </a>
+      <nav class="nav__links" id="navLinks">
+        <a href="index.html#what">What</a>
+        <a href="index.html#features">Features</a>
+        <a href="index.html#plugins">Plugins</a>
+        <a href="index.html">← Home</a>
+        <a href="#install" class="nav__cta">Start setup</a>
+      </nav>
+      <button class="nav__toggle" id="navToggle" aria-label="Menu">☰</button>
+    </div>
+  </header>
+
+  <!-- ============================ DOC HERO ============================ -->
+  <section class="dochero">
+    <div class="wrap">
+      <div class="pill">Setup guide</div>
+      <h1>Get TANMA! up and running</h1>
+      <p class="lead">
+        Follow these five parts in order. By the end you'll have the extension installed, a
+        dictionary loaded, Anki wired up with the lapis-simplified note type, and your first
+        mined card sitting in your deck.
+      </p>
+      <div class="dochero__meta">
+        <span>🕒 ~20–30 min</span>
+        <span>🧩 Chrome / Edge / Brave</span>
+        <span>🎴 Anki (optional but recommended)</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ DOC BODY ============================ -->
+  <div class="wrap doc">
+    <!-- TOC -->
+    <aside class="toc">
+      <div class="toc__title">On this page</div>
+      <a href="#install"><span>1</span> Install the extension</a>
+      <a href="#dictionary"><span>2</span> Add a dictionary</a>
+      <a href="#anki"><span>3</span> Set up Anki mining</a>
+      <a href="#sources"><span>4</span> Subtitles &amp; companions</a>
+      <a href="#firstcard"><span>5</span> Mine your first card</a>
+      <a href="#trouble"><span>?</span> Troubleshooting</a>
+    </aside>
+
+    <main class="doccontent">
+
+      <!-- ======= PART 1 ======= -->
+      <section class="part" id="install">
+        <div class="part__label">Part 1</div>
+        <h2>Install the extension</h2>
+        <p>Grab the pre-built release and load it unpacked — no building required.</p>
+
+        <div class="callout callout--tip"><b>You'll need:</b> a Chromium browser (Chrome, Edge, or Brave). That's it.</div>
+
+        <div class="tstep"><div class="tstep__n">1</div><div class="tstep__b">
+          <h3>Download the latest build</h3>
+          <p>Grab the newest <code>dist.zip</code> from the releases page:</p>
+          <p><a class="btn btn--primary" href="https://github.com/Filleee/tanma/releases" target="_blank" rel="noopener">↓ Download the latest build</a></p>
+          <p class="tstep__hint">Then unzip it — you'll get a <code>dist</code> folder.</p>
+        </div></div>
+
+        <div class="tstep"><div class="tstep__n">2</div><div class="tstep__b">
+          <h3>Load it unpacked</h3>
+          <ol>
+            <li>Open <code>chrome://extensions</code>.</li>
+            <li>Turn on <b>Developer mode</b> (top-right).</li>
+            <li>Click <b>Load unpacked</b> and choose the unzipped <code>dist</code> folder.</li>
+          </ol>
+        </div></div>
+
+        <div class="tstep"><div class="tstep__n">3</div><div class="tstep__b">
+          <h3>Pin it</h3>
+          <p>Click the puzzle-piece icon in the toolbar and pin <b>TANMA!</b> so its popup is one click away.</p>
+        </div></div>
+
+        <div class="callout callout--info">The popup's <b>Dashboard &amp; settings → Open</b> button takes you to the options page, where the rest of this guide happens.</div>
+        <p class="tstep__hint" style="margin-top:14px">Prefer to build from source? Clone the repo and run <code>npm install &amp;&amp; npm run build</code> in <code>project/</code>, then load <code>project/dist</code>.</p>
+      </section>
+
+      <!-- ======= PART 2 ======= -->
+      <section class="part" id="dictionary">
+        <div class="part__label">Part 2</div>
+        <h2>Add a dictionary</h2>
+        <p>Look-ups need at least one dictionary. TANMA! uses the same <b>Yomitan-format</b> <code>.zip</code> dictionaries you may already know.</p>
+
+        <div class="tstep"><div class="tstep__n">1</div><div class="tstep__b">
+          <h3>Open the dashboard</h3>
+          <p>Popup → <b>Dashboard &amp; settings → Open</b>, then go to the <b>Dictionaries</b> tab.</p>
+        </div></div>
+
+        <div class="tstep"><div class="tstep__n">2</div><div class="tstep__b">
+          <h3>Install a dictionary</h3>
+          <p>Two ways:</p>
+          <ul>
+            <li><b>One-click catalog</b> — pick from the built-in list (Jitendex, JMnedict, KANJIDIC, frequency &amp; pitch dicts) and it downloads + imports for you.</li>
+            <li><b>Import a file</b> — drop in any Yomitan <code>.zip</code> you've downloaded.</li>
+          </ul>
+          <div class="callout callout--tip">Start with <b>Jitendex</b> (a great free JMdict-based dictionary). Add a <b>frequency</b> and a <b>pitch-accent</b> dictionary later for richer cards.</div>
+          <p class="tstep__hint">Big dictionaries take a little while to import the first time — that's normal; it only happens once.</p>
+        </div></div>
+
+        <p>Now open any Japanese subtitle and click a word — you should see a definition. 🎉 If look-ups are all you wanted, you're done. For Anki, continue.</p>
+      </section>
+
+      <!-- ======= PART 3 ======= -->
+      <section class="part" id="anki">
+        <div class="part__label">Part 3 · the important one</div>
+        <h2>Set up Anki mining</h2>
+        <p>TANMA! sends cards to Anki through the <b>AnkiConnect</b> add-on, using the <b>lapis-simplified</b> note type. Do these in order.</p>
+
+        <div class="tstep"><div class="tstep__n">1</div><div class="tstep__b">
+          <h3>Install Anki</h3>
+          <p>Download and install the desktop app from <a href="https://apps.ankiweb.net" target="_blank" rel="noopener">apps.ankiweb.net</a>. Keep it open while you mine.</p>
+        </div></div>
+
+        <div class="tstep"><div class="tstep__n">2</div><div class="tstep__b">
+          <h3>Install AnkiConnect</h3>
+          <p>In Anki: <b>Tools → Add-ons → Get Add-ons…</b> and paste this add-on code:</p>
+          <div class="code code--inline"><button class="code__copy" data-copy="2055492159">Copy</button><pre><code>2055492159</code></pre></div>
+          <p>Click OK, then <b>restart Anki</b>.</p>
+        </div></div>
+
+        <div class="tstep"><div class="tstep__n">3</div><div class="tstep__b">
+          <h3>Install the lapis-simplified note type</h3>
+          <p>lapis-simplified is a clean mining note type (a simplified <em>lapis</em>). Install it once:</p>
+          <ol>
+            <li>Download the latest <code>.apkg</code> from the <a href="https://github.com/friedrich-de/lapis-simplified" target="_blank" rel="noopener">lapis-simplified</a> releases.</li>
+            <li>In Anki: <b>File → Import</b> and choose that <code>.apkg</code>.</li>
+            <li>This adds the <b>note type</b> (and a sample card) to your collection.</li>
+          </ol>
+          <div class="callout callout--info">TANMA! auto-selects a note type whose name contains “lapis”. If yours is named differently, you'll just pick it from the <b>Note type</b> dropdown in the dashboard (next steps). Check the repo's README for the current install steps.</div>
+        </div></div>
+
+        <div class="tstep"><div class="tstep__n">4</div><div class="tstep__b">
+          <h3>Let TANMA! talk to Anki (CORS)</h3>
+          <p>AnkiConnect only accepts requests from origins on its allow-list. Add the extension's origin:</p>
+          <ol>
+            <li>In the TANMA! dashboard → <b>Anki mining</b>, click <b>Test connection</b>. It prints your extension's exact origin, e.g.<br><code>chrome-extension://&lt;your-id&gt;/</code></li>
+            <li>In Anki: <b>Tools → Add-ons → AnkiConnect → Config</b>.</li>
+            <li>Add that origin to <code>webCorsOriginList</code>:</li>
+          </ol>
+          <div class="code"><button class="code__copy" data-copy='{
+  "webCorsOriginList": [
+    "http://localhost",
+    "chrome-extension://<your-id>"
+  ]
+}'>Copy</button><pre><code>{
+  "webCorsOriginList": [
+    "http://localhost",
+    "chrome-extension://&lt;your-id&gt;"
+  ]
+}</code></pre></div>
+          <p>Save, then <b>restart Anki</b>.</p>
+          <div class="callout callout--warn">Use the <b>real id</b> the Test button showed — every unpacked extension has its own. Keep the trailing part exactly as printed.</div>
+        </div></div>
+
+        <div class="tstep"><div class="tstep__n">5</div><div class="tstep__b">
+          <h3>Configure mining in the dashboard</h3>
+          <p>Back in <b>Dashboard → Anki mining</b>:</p>
+          <ul>
+            <li>Turn <b>Enable Anki mining</b> on.</li>
+            <li>Click <b>Test connection</b> — it should go green.</li>
+            <li>Pick your <b>Deck</b> (make one like “Mining” in Anki first) and <b>Note type</b> (lapis-simplified is auto-picked).</li>
+            <li>Choose what to capture: <b>sentence audio</b>, <b>picture</b> (still or animated), <b>word audio</b>, and your <b>main definition dictionary</b>.</li>
+          </ul>
+
+          <!-- mockup: dashboard anki panel -->
+          <div class="dash">
+            <div class="dash__row"><span>Enable Anki mining</span><span class="switch switch--on"></span></div>
+            <div class="dash__row"><span>Deck</span><span class="dash__sel">Mining ▾</span></div>
+            <div class="dash__row"><span>Note type</span><span class="dash__sel">lapis-simplified ▾</span></div>
+            <div class="dash__row"><span>Capture sentence audio</span><span class="switch switch--on"></span></div>
+            <div class="dash__row"><span>Capture picture</span><span class="switch switch--on"></span></div>
+            <div class="dash__row"><span>Word audio (JapanesePod101)</span><span class="switch switch--on"></span></div>
+            <div class="dash__row dash__row--btn"><span class="dash__test">✓ Connected to Anki</span><span class="dash__btn">Test connection</span></div>
+          </div>
+        </div></div>
+
+        <div class="callout callout--tip">That's the whole Anki setup. From now on, mining is one click (＋) or one tag for the queue (⧉).</div>
+      </section>
+
+      <!-- ======= PART 4 ======= -->
+      <section class="part" id="sources">
+        <div class="part__label">Part 4 · optional</div>
+        <h2>More subtitles &amp; companions</h2>
+        <p>Extra ways to get subtitles and text into TANMA!.</p>
+
+        <div class="tstep"><div class="tstep__n">＋</div><div class="tstep__b">
+          <h3>Jimaku (anime subtitles)</h3>
+          <p>Get a free API key from <a href="https://jimaku.cc/profile" target="_blank" rel="noopener">jimaku.cc/profile</a>, paste it into <b>Dashboard → Jimaku</b>, and TANMA! can auto-find and load Japanese subs for the anime you're watching.</p>
+        </div></div>
+
+        <div class="callout callout--warn">🚧 The <b>tanma-asr</b> and <b>tanma-hook</b> companions below are <b>work in progress — coming soon</b>. Here's what they'll do.</div>
+
+        <div class="tstep tstep--soon"><div class="tstep__n">＋</div><div class="tstep__b">
+          <h3>tanma-asr — make subtitles from any media <span class="soon">Coming soon</span></h3>
+          <p>No subtitle file? Run the <b>tanma-asr</b> companion, drop your audio/video onto it, and it writes a timed <code>.srt</code> (kotoba-whisper) you can import. Great for clips with no subs available.</p>
+        </div></div>
+
+        <div class="tstep tstep--soon"><div class="tstep__n">＋</div><div class="tstep__b">
+          <h3>tanma-hook — read visual novels &amp; games <span class="soon">Coming soon</span></h3>
+          <p>Run <b>tanma-hook</b>, hook your game's text, and open TANMA!'s <b>Reader</b> page (popup → Game / VN reader). Lines stream in with the same look-up + mining pipeline, including voice + screenshot capture.</p>
+        </div></div>
+      </section>
+
+      <!-- ======= PART 5 ======= -->
+      <section class="part" id="firstcard">
+        <div class="part__label">Part 5</div>
+        <h2>Mine your first card</h2>
+
+        <div class="tstep"><div class="tstep__n">1</div><div class="tstep__b">
+          <h3>Open a video with subtitles</h3>
+          <p>On YouTube, subtitles load automatically. Elsewhere, click <b>⬆ import</b> on the in-page toolbar to load a <code>.srt/.vtt/.ass</code>, or search <b>Jimaku</b>.</p>
+        </div></div>
+
+        <div class="tstep"><div class="tstep__n">2</div><div class="tstep__b">
+          <h3>Look up a word</h3>
+          <p>Click a word, or hold <span class="kbd">Alt</span> and hover to grab a word mid-sentence. Mark it <b>Known</b> or <b>Learning</b> to track your progress.</p>
+        </div></div>
+
+        <div class="tstep"><div class="tstep__n">3</div><div class="tstep__b">
+          <h3>Mine it — now or later</h3>
+          <ul>
+            <li><b>Now:</b> click <span class="kbd">＋</span> in the look-up. The card lands in your deck with sentence audio, a screenshot, and the definition.</li>
+            <li><b>Later:</b> click <span class="kbd">⧉</span> to add it to the queue. Keep watching, then open the queue and hit <b>Mine all → Anki</b> — it runs muted so you can look away.</li>
+          </ul>
+        </div></div>
+
+        <div class="tstep"><div class="tstep__n">4</div><div class="tstep__b">
+          <h3>Check Anki</h3>
+          <p>Open your deck in Anki — your new card is there, ready to review. You're mining! 🎴</p>
+        </div></div>
+      </section>
+
+      <!-- ======= TROUBLESHOOTING ======= -->
+      <section class="part" id="trouble">
+        <div class="part__label">Troubleshooting</div>
+        <h2>If something's off</h2>
+        <div class="faq">
+          <div class="faq__q"><b>“Test connection” fails</b><p>Make sure Anki is <b>open</b>, AnkiConnect is installed (restart Anki after installing), and your extension origin is in <code>webCorsOriginList</code> (restart Anki after editing the config).</p></div>
+          <div class="faq__q"><b>Clicking a word shows nothing</b><p>You need a dictionary — import one in <b>Dashboard → Dictionaries</b> (Part 2).</p></div>
+          <div class="faq__q"><b>No subtitles appear</b><p>On YouTube, wait a moment or toggle CC; elsewhere, <b>import</b> a subtitle file or search <b>Jimaku</b>. You can nudge timing with the offset control.</p></div>
+          <div class="faq__q"><b>The card has no picture/audio</b><p>Check the capture toggles in <b>Anki mining</b>, and confirm the note type has the matching fields (lapis-simplified does).</p></div>
+        </div>
+        <div class="doccta">
+          <a class="btn btn--primary" href="index.html">← Back to overview</a>
+          <a class="btn btn--ghost" href="#top">Top of guide ↑</a>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <div class="footer__brand">
+        <img src="assets/mascot.png" alt="" class="footer__logo" />
+        <span>TANMA<span class="brand__bang">!</span></span>
+      </div>
+      <p class="footer__tag">Learn a language from the video you're already watching.</p>
+      <p class="footer__small">In-page learning subtitle overlay · Japanese-first · Anki mining · GPL-3.0-or-later</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

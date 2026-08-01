@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TANMA! — learn a language from the video you're already watching</title>
+  <meta name="description" content="TANMA! is a browser extension that turns any video into a language lesson: an in-page learning subtitle overlay, click-to-look-up words (Japanese-first, with furigana), and one-click Anki sentence mining." />
+  <link rel="icon" href="assets/favicon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ============================ NAV ============================ -->
+  <header class="nav" id="top">
+    <div class="wrap nav__inner">
+      <a class="brand" href="#top">
+        <img src="assets/mascot.png" alt="TANMA mascot" class="brand__logo" />
+        <span class="brand__name">TANMA<span class="brand__bang">!</span></span>
+      </a>
+      <nav class="nav__links" id="navLinks">
+        <a href="#what">What</a>
+        <a href="#why">Why</a>
+        <a href="#features">Features</a>
+        <a href="#how">How to use</a>
+        <a href="#plugins">Plugins</a>
+        <a href="tutorial.html" class="nav__cta">Setup guide ↗</a>
+      </nav>
+      <button class="nav__toggle" id="navToggle" aria-label="Menu">☰</button>
+    </div>
+  </header>
+
+  <!-- ============================ HERO ============================ -->
+  <section class="hero">
+    <div class="wrap hero__inner">
+      <div class="hero__copy">
+        <div class="pill">Browser extension · Japanese-first</div>
+        <h1>Learn a language from the video you're <span class="hl">already watching</span>.</h1>
+        <p class="lead">
+          TANMA! drops a smart subtitle overlay onto any video. Click a word for an instant
+          dictionary look-up, see furigana over the kanji, track what you know, and send a
+          full sentence card to Anki — without leaving the page.
+        </p>
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="#start">Get started →</a>
+          <a class="btn btn--ghost" href="#features">See features</a>
+        </div>
+        <div class="hero__meta">
+          <span>▶ Works on YouTube &amp; streaming sites</span>
+          <span>🈁 Furigana + word lookups</span>
+          <span>🎴 Anki mining</span>
+        </div>
+      </div>
+
+      <!-- Hero visual: a faux video frame with the overlay + a floating look-up popup.
+           The look-up buttons below are wired up in script.js — try them! -->
+      <div class="hero__demo" id="heroDemo">
+        <div class="player">
+          <div class="player__bar">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="player__url">▶ watching · episode 1</span>
+          </div>
+          <div class="player__stage">
+            <img src="assets/mascot-512.png" alt="" class="player__art" />
+            <!-- docked toolbar -->
+            <div class="mockbar">
+              <span class="mockbar__brand">TANMA!</span>
+              <span class="mockbar__known"><b>1,204</b> known</span>
+              <span class="mockbar__spacer"></span>
+              <span class="mockbar__btn">⟨</span>
+              <span class="mockbar__btn">▮▮</span>
+              <span class="mockbar__btn">⟩</span>
+              <span class="mockbar__btn mockbar__btn--stack">⧉<i id="demoBadge">3</i></span>
+              <span class="mockbar__btn">≣</span>
+            </div>
+            <!-- subtitle overlay -->
+            <div class="overlay">
+              <div class="overlay__ja">
+                <ruby>日本語<rt>にほんご</rt></ruby><span class="tok tok--learn">を</span><ruby class="tok tok--sel">勉強<rt>べんきょう</rt></ruby><span class="tok">します</span>
+              </div>
+              <div class="overlay__2nd">I'm studying Japanese.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- floating look-up popup (reproduces the real UI) -->
+        <div class="lookup">
+          <div class="lookup__head">
+            <span class="lookup__word"><ruby>勉強<rt>べんきょう</rt></ruby></span>
+            <span class="lookup__spacer"></span>
+            <button class="lk-btn" id="demoSpeak" title="Play the reading">🔊</button>
+            <button class="lk-btn" id="demoKana" title="Toggle hiragana / katakana">あ</button>
+            <button class="lk-btn lk-btn--accent" id="demoQueue" title="Add to mining queue">⧉</button>
+            <button class="lk-btn lk-btn--accent" id="demoMine" title="Add to Anki">＋</button>
+          </div>
+          <div class="lookup__chips">
+            <span class="chip chip--on">Unknown</span>
+            <span class="chip">Learning</span>
+            <span class="chip">Known</span>
+          </div>
+          <div class="lookup__dict">JMdict <span class="lookup__seq">[2026-07-06]</span></div>
+          <ol class="lookup__gloss">
+            <li>study; diligence</li>
+            <li>discount; reduction (in price)</li>
+          </ol>
+          <div class="lookup__pitch">Pitch <span class="pitch">べ<span class="pitch__h">んきょう</span></span> ⓪</div>
+        </div>
+        <div class="demo__hint">This is a live demo — try the <b>🔊 あ ⧉ ＋</b> buttons above ✨</div>
+        <div class="demo__toast" id="demoToast" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ WHAT ============================ -->
+  <section class="section" id="what">
+    <div class="wrap">
+      <h2 class="section__title">What is TANMA?</h2>
+      <p class="section__sub">
+        TANMA! is a <b>Manifest&nbsp;V3 browser extension</b> for <b>immersion learning</b>. It
+        renders its own learning subtitles over any video element on the page — YouTube, anime
+        streaming sites, or your own local files — and turns every line into something you can
+        read, look up, and study. It's Japanese-first (furigana + rich word look-ups), with
+        secondary support for Korean and Chinese.
+      </p>
+      <div class="whatgrid">
+        <div class="whatcard"><span class="whatcard__k">In-page</span><span class="whatcard__v">No separate app — the overlay lives on the video you're watching.</span></div>
+        <div class="whatcard"><span class="whatcard__k">Click to learn</span><span class="whatcard__v">Every word is a look-up: definitions, readings, pitch accent, frequency.</span></div>
+        <div class="whatcard"><span class="whatcard__k">Mine to Anki</span><span class="whatcard__v">Send a full sentence card — audio, screenshot, definition — in one click.</span></div>
+        <div class="whatcard"><span class="whatcard__k">Yours, local</span><span class="whatcard__v">Your dictionaries and progress live in your browser. No account.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ WHY ============================ -->
+  <section class="section section--alt" id="why">
+    <div class="wrap">
+      <h2 class="section__title">Why use it?</h2>
+      <p class="section__sub">Because the best study material is the show you actually want to watch.</p>
+      <div class="whygrid">
+        <article class="why">
+          <div class="why__ic">📺</div>
+          <h3>Learn in context</h3>
+          <p>Read native subtitles as you watch. Words stick because you meet them in real sentences, spoken by real voices.</p>
+        </article>
+        <article class="why">
+          <div class="why__ic">⚡</div>
+          <h3>Zero friction</h3>
+          <p>No copy-pasting into a dictionary tab. Hold a key and hover, or click — the answer appears over the line.</p>
+        </article>
+        <article class="why">
+          <div class="why__ic">🈁</div>
+          <h3>Japanese, done right</h3>
+          <p>Furigana over kanji, deinflection back to the dictionary form, multi-word expressions, pitch accent, and frequency — Yomitan-style.</p>
+        </article>
+        <article class="why">
+          <div class="why__ic">🎴</div>
+          <h3>Effortless Anki</h3>
+          <p>Turn a line into a study card with sentence audio, a screenshot, and the definition — or queue words and batch them later.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ FEATURES ============================ -->
+  <section class="section" id="features">
+    <div class="wrap">
+      <h2 class="section__title">Features</h2>
+      <p class="section__sub">Everything TANMA! can do, at a glance.</p>
+      <div class="feat">
+        <div class="feat__card"><div class="feat__ic">🎬</div><h3>Subtitle overlay</h3><p>A clean, resizable learning-subtitle line over any <code>&lt;video&gt;</code> — even players nested in cross-origin iframes.</p></div>
+        <div class="feat__card"><div class="feat__ic">🔍</div><h3>Word look-up</h3><p>Click or hold-hover a word: definitions from your imported dictionaries, plus Jisho / Wiktionary, with kanji info.</p></div>
+        <div class="feat__card"><div class="feat__ic">🈁</div><h3>Furigana &amp; deinflection</h3><p>Readings over kanji, and conjugations traced back to the dictionary form (勉強したくなかった → 勉強).</p></div>
+        <div class="feat__card"><div class="feat__ic">🎨</div><h3>Known / Learning tracking</h3><p>Mark words Known or Learning; they're colour-coded everywhere so you see your progress at a glance.</p></div>
+        <div class="feat__card"><div class="feat__ic">📜</div><h3>Subtitle browser</h3><p>A side panel of every line — click to jump, bookmark lines, look up words, and one-click sync the timing.</p></div>
+        <div class="feat__card"><div class="feat__ic">🎴</div><h3>Anki sentence mining</h3><p>lapis-simplified cards via AnkiConnect: word audio, sentence audio, still or animated picture, pitch, frequency, glossary.</p></div>
+        <div class="feat__card"><div class="feat__ic">⧉</div><h3>Mining queue</h3><p>Tag words while you watch, then batch-mine them later — muted and hands-off, so nothing interrupts the show.</p></div>
+        <div class="feat__card"><div class="feat__ic">📥</div><h3>Subtitle sources</h3><p>YouTube captions (auto), Jimaku.cc anime subs, drag-in <code>.srt/.vtt/.ass</code>, and LRCLIB synced song lyrics.</p></div>
+        <div class="feat__card"><div class="feat__ic">🌐</div><h3>Machine translation</h3><p>An optional translated second line under the target language (Google keyless / DeepL).</p></div>
+        <div class="feat__card"><div class="feat__ic">⏱️</div><h3>Timing offset</h3><p>Nudge subtitles earlier/later per video, or one-click align a line to the current playhead. Remembered per video.</p></div>
+        <div class="feat__card"><div class="feat__ic">💾</div><h3>Persists across reloads</h3><p>The subtitle file you picked and your mining queue come back after a refresh — keyed to that video.</p></div>
+        <div class="feat__card"><div class="feat__ic">🎞️</div><h3>Local media player</h3><p>Drop a video + subtitle (or an <code>.mkv</code> with embedded subs) into a built-in Netflix-style player.</p></div>
+        <div class="feat__card"><div class="feat__ic">🎮</div><h3>Game / VN reader</h3><p>A texthooker page for visual novels and games, fed by the tanma-hook companion — same look-up + mining pipeline.</p></div>
+        <div class="feat__card"><div class="feat__ic">📚</div><h3>Yomitan-format dictionaries</h3><p>Import the same <code>.zip</code> dictionaries you use in Yomitan — Jitendex, JMnedict, KANJIDIC, frequency &amp; pitch dicts.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ HOW TO USE ============================ -->
+  <section class="section section--alt" id="how">
+    <div class="wrap">
+      <h2 class="section__title">How to use it</h2>
+      <p class="section__sub">From install to your first Anki card in five steps.</p>
+
+      <div class="how">
+        <div class="how__steps">
+          <div class="step"><div class="step__n">1</div><div><h3>Install &amp; open the dashboard</h3><p>Load the extension, then open the popup → <b>Dashboard &amp; settings</b> to import a dictionary and set your target language.</p></div></div>
+          <div class="step"><div class="step__n">2</div><div><h3>Open a video</h3><p>On YouTube, subtitles load automatically. Elsewhere, click <b>⬆ import</b> to load a <code>.srt/.vtt/.ass</code> file, or search <b>Jimaku</b> for anime subs.</p></div></div>
+          <div class="step"><div class="step__n">3</div><div><h3>Read &amp; look up</h3><p>Click any word for a definition, or hold <span class="kbd">Alt</span> and hover to scan a word mid-sentence. Mark it <b>Known</b> or <b>Learning</b>.</p></div></div>
+          <div class="step"><div class="step__n">4</div><div><h3>Queue or mine</h3><p>Hit <span class="kbd">＋</span> to send a card to Anki now, or <span class="kbd">⧉</span> to add it to the queue and mine everything later.</p></div></div>
+          <div class="step"><div class="step__n">5</div><div><h3>Batch to Anki</h3><p>Open the queue and press <b>Mine all → Anki</b>. It seeks each line, grabs audio + a screenshot, and builds the cards — muted, so you can look away.</p></div></div>
+        </div>
+
+        <!-- mockups: queue panel + shortcuts -->
+        <div class="how__visuals">
+          <div class="queue">
+            <div class="queue__head"><span>Mining queue</span><span class="queue__x">✕</span></div>
+            <div class="queue__status">3 words queued</div>
+            <div class="queue__row"><div><b>勉強（べんきょう）</b><span>日本語を勉強します</span></div><span class="queue__del">✕</span></div>
+            <div class="queue__row"><div><b>諸悪の根源（しょあくのこんげん）</b><span>それが諸悪の根源だ</span></div><span class="queue__del">✕</span></div>
+            <div class="queue__row"><div><b>王都（おうと）</b><span>王都へ向かう</span></div><span class="queue__del">✕</span></div>
+            <div class="queue__foot"><button class="btn btn--primary btn--sm">Mine all (3) → Anki</button><button class="btn btn--ghost btn--sm">Clear</button></div>
+          </div>
+
+          <div class="keys">
+            <div class="keys__title">Keyboard shortcuts</div>
+            <div class="keys__row"><span class="kbd">Alt</span> + hover <span class="keys__d">look up a word mid-sentence</span></div>
+            <div class="keys__row"><span class="kbd">A</span> <span class="kbd">D</span> <span class="keys__d">previous / next line</span></div>
+            <div class="keys__row"><span class="kbd">S</span> <span class="keys__d">replay the current line</span></div>
+            <div class="keys__row"><span class="kbd">＋</span> <span class="keys__d">mine to Anki now</span></div>
+            <div class="keys__row"><span class="kbd">⧉</span> <span class="keys__d">add to the mining queue</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ PLUGINS ============================ -->
+  <section class="section" id="plugins">
+    <div class="wrap">
+      <h2 class="section__title">Plugins &amp; companions</h2>
+      <p class="section__sub">Small helper apps that extend TANMA! beyond the browser. <b>Both are in progress — coming soon.</b></p>
+      <div class="plugins">
+        <article class="plugin plugin--soon">
+          <div class="plugin__badges"><span class="plugin__badge">Python · desktop</span><span class="soon">🚧 Work in progress</span></div>
+          <h3>tanma-asr</h3>
+          <p class="plugin__tag">Make subtitles from any media</p>
+          <p>No subtitle file? Drop an audio or video clip onto <b>tanma-asr</b> and it transcribes it to a timed <code>.srt</code> you can import and mine like any track.</p>
+          <ul class="plugin__list">
+            <li>Powered by <b>kotoba-whisper v2.2</b> (Japanese-tuned)</li>
+            <li>Fast CPU path (faster-whisper / int8) — no GPU required</li>
+            <li>Drag-and-drop GUI, or <code>python -m tanma_asr transcribe</code></li>
+          </ul>
+        </article>
+
+        <article class="plugin plugin--soon">
+          <div class="plugin__badges"><span class="plugin__badge">Python · desktop</span><span class="soon">🚧 Work in progress</span></div>
+          <h3>tanma-hook</h3>
+          <p class="plugin__tag">Read visual novels &amp; games</p>
+          <p>Hooks a game's text (wrapping Textractor) and streams each line to TANMA!'s <b>Reader</b> page over a local WebSocket — with retroactive voice + screenshot capture for mining.</p>
+          <ul class="plugin__list">
+            <li>Feeds the in-browser <b>Reader</b> (same look-up + mining)</li>
+            <li>Captures the line's <b>voice</b> and a window <b>screenshot</b></li>
+            <li>Texthooker-compatible line protocol</li>
+          </ul>
+        </article>
+      </div>
+      <p class="plugins__note">Companions are optional and will live alongside the extension. They're still being polished — <b>coming soon</b>. ✨</p>
+    </div>
+  </section>
+
+  <!-- ============================ GET STARTED (teaser → full tutorial) ============================ -->
+  <section class="section section--alt" id="start">
+    <div class="wrap">
+      <div class="cta">
+        <img src="assets/mascot.png" alt="TANMA mascot" class="cta__mascot" />
+        <h2 class="cta__title">Ready to set it up?</h2>
+        <p class="cta__sub">
+          The full setup guide walks you through everything — installing the extension, adding a
+          dictionary, and wiring up Anki (AnkiConnect + the lapis-simplified note type) — step by
+          step, until you're mining your first card.
+        </p>
+        <div class="cta__actions">
+          <a class="btn btn--primary" href="tutorial.html">Open the setup guide →</a>
+          <a class="btn btn--ghost" href="#features">Review features</a>
+        </div>
+        <p class="cta__note">Free &amp; open source · GPL-3.0-or-later · your data stays in your browser.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="wrap footer__inner">
+      <div class="footer__brand">
+        <img src="assets/mascot.png" alt="" class="footer__logo" />
+        <span>TANMA<span class="brand__bang">!</span></span>
+      </div>
+      <p class="footer__tag">Learn a language from the video you're already watching.</p>
+      <p class="footer__small">In-page learning subtitle overlay · Japanese-first · Anki mining · GPL-3.0-or-later</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
