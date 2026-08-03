@@ -788,8 +788,8 @@ export class App {
       return;
     }
     // In fullscreen the browser can't dock into the page layout, so shrink the
-    // video left to make room for it (before measuring, so the rect we place the
-    // overlay/toolbar against reflects the shrunken video).
+    // video toward its right edge to make room on the left (before measuring, so the
+    // rect we place the overlay/toolbar against reflects the shrunken video).
     this.updateFullscreenDock(v);
     const rect = v.getBoundingClientRect();
     if (rect.width < 1) return;
@@ -828,6 +828,7 @@ export class App {
   private fsPrevTransform = "";
   private fsPrevOrigin = "";
   private fsDockOn = false;
+  private fsLeftDock = false; // true when the panel sits on the LEFT (fullscreen), false = right (theater/wide)
 
   /** Common player-root classes — scaling the whole player (video + its controls)
    *  beats scaling the bare <video> (whose controls are siblings and wouldn't move). */
@@ -863,51 +864,70 @@ export class App {
     const inRealFullscreen = !!fsEl && (fsEl === v || fsEl.contains(v));
     const target = this.scaleTarget(v);
 
-    // Geometry that ignores our own transform: offsetWidth is layout-only, and with
-    // transform-origin:left center the bounding-rect LEFT equals the unscaled left edge
-    // — so these are stable across frames (no scale→measure→scale feedback).
-    const left = target.getBoundingClientRect().left;
-    const unscaledWidth = target.offsetWidth || target.getBoundingClientRect().width;
+    // Geometry that ignores our own transform: offset* is layout-only (stable while scaling),
+    // and the bounding-rect edge on the transform-origin side equals the unscaled edge — so
+    // measuring it each frame gives no scale→measure→scale feedback.
+    const rect = target.getBoundingClientRect();
+    const unscaledWidth = target.offsetWidth || rect.width;
     const vw = window.innerWidth;
-    const panelLeft = vw - BROWSER_DOCK_WIDTH;
-    const wideEnough = unscaledWidth >= vw * 0.6;        // the main player, not a small embed
-    const underPanel = left + unscaledWidth > panelLeft + 2; // would be covered by the panel
+    const panelW = BROWSER_DOCK_WIDTH;
+    const open = this.settings.enabled && this.settings.browserOpen;
 
-    // Skip when YouTube's own dock is reshaping the page (canDock) — it reserves space
-    // by resizing the player instead, no scaling needed.
-    const shouldDock = this.settings.enabled && this.settings.browserOpen
-      && (inRealFullscreen || (wideEnough && underPanel && !this.dock.canDock()));
+    // In real fullscreen we dock the panel on the LEFT and scale the player toward its RIGHT edge,
+    // so the player's own bottom-right controls/menus (settings, quality, speed) stay clear of the
+    // panel instead of being covered by it. (Sites that fullscreen a nested player — miruro — report
+    // real fullscreen inside that frame, where this runs.) A windowed "theater"/wide player keeps
+    // the original right-dock (scale toward the left edge).
+    const fsLike = inRealFullscreen;
+
+    let shouldDock: boolean;
+    let scale = 1;
+    let origin: string;
+    if (fsLike) {
+      shouldDock = open;
+      origin = "right center"; // .right is fixed under it → stable to measure
+      scale = Math.max(0.3, Math.min(1, (rect.right - panelW) / unscaledWidth));
+    } else {
+      // Skip when YouTube's own dock reshapes the page (canDock) — it resizes the player instead.
+      const left = rect.left; // fixed under transform-origin:left
+      const panelLeft = vw - panelW;
+      const wideEnough = unscaledWidth >= vw * 0.6; // the main player, not a small embed
+      const underPanel = left + unscaledWidth > panelLeft + 2; // would be covered by the right panel
+      shouldDock = open && wideEnough && underPanel && !this.dock.canDock();
+      origin = "left center";
+      scale = Math.max(0.3, Math.min(1, (panelLeft - left) / unscaledWidth));
+    }
     const transition = shouldDock !== this.fsDockOn;
 
     if (shouldDock) {
-      // Shrink so the player's right edge meets the panel's left edge, scaling about its
-      // own left edge so it stays put and the freed space opens on the right.
-      const scale = Math.max(0.3, Math.min(1, (panelLeft - left) / unscaledWidth));
       if (this.fsScaledEl !== target) {
         this.clearFullscreenScale(); // restore any previously-scaled element first
         this.fsPrevTransform = target.style.transform;
         this.fsPrevOrigin = target.style.transformOrigin;
         this.fsScaledEl = target;
       }
-      target.style.setProperty("transform-origin", "left center", "important");
+      target.style.setProperty("transform-origin", origin, "important");
       target.style.setProperty("transform", `scale(${scale.toFixed(4)})`, "important");
+      this.fsLeftDock = fsLike;
     } else if (this.fsScaledEl) {
       this.clearFullscreenScale();
+      this.fsLeftDock = false;
     }
 
     if (transition) {
       this.fsDockOn = shouldDock;
       const what = this.fsScaledEl === v ? "video" : this.fsScaledEl?.className?.toString().split(/\s+/)[0] || "player";
-      console.info(`[tnm] player dock ${shouldDock ? "ON" : "off"} (${inRealFullscreen ? "fullscreen" : "theater/wide"}, scaled ${shouldDock ? what : "—"})`);
+      console.info(`[tnm] player dock ${shouldDock ? "ON" : "off"} (${fsLike ? "fullscreen" : "theater/wide"}, scaled ${shouldDock ? what : "—"}, panel ${this.fsLeftDock ? "left" : "right"})`);
     }
   }
 
-  /** The on-screen box the scaled player occupies — used to align the docked browser
-   *  panel to it (clean centered band). null when nothing is scaled. */
+  /** The on-screen box the docked browser panel occupies — beside the scaled player, on the
+   *  LEFT in fullscreen (clear of the player's menus) or the RIGHT for a windowed wide player. */
   fullscreenVideoRect(): DOMRect | null {
     if (!this.fsScaledEl) return null;
     const r = this.fsScaledEl.getBoundingClientRect();
-    return new DOMRect(window.innerWidth - BROWSER_DOCK_WIDTH, r.top, BROWSER_DOCK_WIDTH, r.height);
+    const x = this.fsLeftDock ? 0 : window.innerWidth - BROWSER_DOCK_WIDTH;
+    return new DOMRect(x, r.top, BROWSER_DOCK_WIDTH, r.height);
   }
 
   /** Undo the player scale, restoring whatever inline transform was there. */
