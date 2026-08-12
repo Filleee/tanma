@@ -105,6 +105,8 @@ export interface Settings {
   accent: string;
   /** Color words by known status (underlines). */
   showKnownStatus: boolean;
+  /** Tint grammar morphemes (particles & auxiliaries) a distinct colour, detected by part-of-speech. */
+  colorGrammar: boolean;
   hoverLookup: boolean;
   pauseMode: PauseMode;
   /** "Pause each line" auto-resume delay, in seconds (0 = manual). ("Pause on lookup" instead
@@ -190,6 +192,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mtApiKey: "",
   accent: "#ff9345",
   showKnownStatus: true,
+  colorGrammar: false, // opt-in
   hoverLookup: false, // off by default — hold-to-look-up (holdLookup) is the default hover
   pauseMode: "off",
   autoResume: 0,

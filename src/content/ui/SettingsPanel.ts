@@ -185,6 +185,7 @@ export class SettingsPanel {
       this.el.append(this.selectRow("Translation language", s.nativeLang, LANGS, "nativeLang"));
     }
     this.el.append(this.switchRow("Color word status", s.showKnownStatus, "showKnownStatus"));
+    this.el.append(this.switchRow("Color particles & grammar", s.colorGrammar, "colorGrammar"));
     this.el.append(this.switchRow("Hover to look up", s.hoverLookup, "hoverLookup"));
     this.el.append(this.switchRow("Match multi-word expressions", s.compoundLookup, "compoundLookup"));
 

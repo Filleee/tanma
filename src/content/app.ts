@@ -364,6 +364,7 @@ export class App {
     this.host.setThemeFlags({
       furigana: this.settings.showFurigana,
       knownStatus: this.settings.showKnownStatus,
+      grammar: this.settings.colorGrammar,
     });
     applyAccentVars(this.host.root, this.settings.accent || "#ff9345", "--tnm-accent");
   }

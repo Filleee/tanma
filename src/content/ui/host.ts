@@ -63,9 +63,10 @@ export class ShadowHost {
     if (this.host.parentElement !== parent) parent.append(this.host);
   };
 
-  setThemeFlags(flags: { furigana: boolean; knownStatus: boolean }) {
+  setThemeFlags(flags: { furigana: boolean; knownStatus: boolean; grammar: boolean }) {
     this.root.classList.toggle("-tnm-furigana", flags.furigana);
     this.root.classList.toggle("-tnm-show-known-status", flags.knownStatus);
+    this.root.classList.toggle("-tnm-grammar", flags.grammar);
   }
 
   destroy() {

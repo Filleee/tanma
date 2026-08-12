@@ -48,7 +48,7 @@ export const hostSettingsKey = (host: string = location.hostname): string => `tn
  *  dictionary config — is global; subOffset is per-video. */
 export const HOST_SCOPED_KEYS = [
   "enabled", "targetLang", "nativeLang", "subtitleSize", "subtitleShadow", "subtitleBackground",
-  "showFurigana", "showSecondary", "showMachineTranslation", "showKnownStatus", "hoverLookup",
+  "showFurigana", "showSecondary", "showMachineTranslation", "showKnownStatus", "colorGrammar", "hoverLookup",
   "compoundLookup", "pauseMode", "autoResume", "hideTarget", "hideSecondary", "overlayPosition", "browserOpen",
 ] as const satisfies readonly (keyof Settings)[];
 

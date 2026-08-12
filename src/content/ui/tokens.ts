@@ -30,8 +30,12 @@ export function renderSentence(tokens: Token[], ctx: TokenCtx): HTMLElement {
   const sentence = el("span", { class: "tnm-sentence" });
 
   for (const [index, token] of tokens.entries()) {
+    // Grammar morphemes (particles を/に/は, auxiliaries, copula) — tagged by the tokenizer's
+    // part-of-speech. CSS tints `.tnm-particle` a distinct colour when the grammar flag is on.
+    const isGrammar = token.pos === "particle" || token.pos === "auxiliary";
     if (!token.isWord) {
-      sentence.append(document.createTextNode(token.surface));
+      if (isGrammar) sentence.append(el("span", { class: "tnm-particle" }, token.surface));
+      else sentence.append(document.createTextNode(token.surface));
       continue;
     }
 
@@ -49,7 +53,7 @@ export function renderSentence(tokens: Token[], ctx: TokenCtx): HTMLElement {
     const tok = el(
       "span",
       {
-        class: "tnm-token -tnm-word",
+        class: "tnm-token -tnm-word" + (isGrammar ? " -tnm-particle" : ""),
         "data-dict": token.dict,
         "data-tnm-known-status": ctx.known.get(token.dict),
         ...(ctx.mined?.(token.dict) ? { "data-tnm-mined": "1" } : {}),

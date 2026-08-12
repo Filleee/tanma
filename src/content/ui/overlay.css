@@ -19,6 +19,7 @@
   --tnm-unknown: #4aa3ff;
   --tnm-learning: #ffb020;
   --tnm-known: #36c275;
+  --tnm-grammar: #b58cf0; /* particles & auxiliaries — distinct from the three word statuses */
   --tnm-line: rgba(255, 255, 255, 0.1);
   color: var(--tnm-text);
 }
@@ -167,6 +168,12 @@
 .tnm-root.-tnm-show-known-status .tnm-token[data-tnm-known-status="KNOWN"] .-tnm-content::after,
 .tnm-root.-tnm-show-known-status .tnm-token[data-tnm-known-status="IGNORED"] .-tnm-content::after {
   background: transparent;
+}
+/* Grammar tint (particles & auxiliaries), toggled by the -tnm-grammar root flag. Particles
+   render as plain `.tnm-particle` spans; word-particles keep their `.tnm-surface`. */
+.tnm-root.-tnm-grammar .tnm-particle,
+.tnm-root.-tnm-grammar .tnm-token.-tnm-particle .tnm-surface {
+  color: var(--tnm-grammar);
 }
 .tnm-token.-tnm-word:hover,
 .tnm-token.-tnm-active {
