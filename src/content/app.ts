@@ -1267,7 +1267,7 @@ export class App {
     sentence: string,
     cue: Cue | null,
     candidates: string[] = [],
-    opts: { reading?: string; quiet?: boolean } = {},
+    opts: { reading?: string; quiet?: boolean; offset?: number } = {},
   ): Promise<boolean> {
     if (this.mining) return false;
     if (!this.settings.ankiDeck || !this.settings.ankiModel) {
@@ -1333,8 +1333,11 @@ export class App {
       const wantClip = this.settings.ankiCaptureImage && animated;
       const wantStill = this.settings.ankiCaptureImage && !animated;
       const wantSentenceAudio = this.settings.ankiCaptureSentenceAudio;
-      const cueStart = cue && v ? Math.max(0, cue.start + this.settings.subOffset) : 0;
-      const cueEnd = cue && v ? cue.end + this.settings.subOffset : 0;
+      // Queued items carry the offset from when they were queued (opts.offset); a live ＋ mine uses
+      // the current offset. So re-aligning drifting subs later won't shift already-queued lines.
+      const offset = opts.offset ?? this.settings.subOffset;
+      const cueStart = cue && v ? Math.max(0, cue.start + offset) : 0;
+      const cueEnd = cue && v ? cue.end + offset : 0;
       const atCue = !!(cue && v && v.currentTime >= cueStart - 0.1 && v.currentTime < cueEnd);
       const needRecord = wantClip || wantSentenceAudio;
       const willSeek = !!(v && cue && (needRecord || (wantStill && !atCue)));
@@ -1442,7 +1445,7 @@ export class App {
       return;
     }
     const reading = this.lookup.currentReading() || token.reading;
-    this.mineQueue.push({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, token, sentence, cue, candidates, reading });
+    this.mineQueue.push({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, token, sentence, cue, candidates, reading, offset: this.settings.subOffset });
     this.lookup.setQueued(true);
     this.persistQueue();
     this.refreshQueueUi();
@@ -1499,7 +1502,7 @@ export class App {
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
         this.queuePanel.update(this.queueRows(), { busy: true, status: `Mining ${i + 1}/${items.length}: ${it.token.dict}… (muted — you can look away)` });
-        const ok = await this.mineCard(it.token, it.sentence, it.cue, it.candidates, { reading: it.reading, quiet: true }).catch(() => false);
+        const ok = await this.mineCard(it.token, it.sentence, it.cue, it.candidates, { reading: it.reading, quiet: true, offset: it.offset }).catch(() => false);
         if (ok) {
           this.mineQueue = this.mineQueue.filter((q) => q.id !== it.id);
           this.persistQueue(); // crash-safe: don't re-mine what already landed

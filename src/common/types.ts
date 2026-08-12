@@ -35,6 +35,9 @@ export interface QueuedMine {
   candidates: string[];
   /** The reading shown/selected in the popup when queued. */
   reading: string;
+  /** The timing offset active when queued, so batch-mining reproduces the alignment you saw
+   *  even if you re-align the subtitles later (e.g. a drifting file). */
+  offset?: number;
 }
 
 export type KnownStatus = "UNKNOWN" | "LEARNING" | "KNOWN" | "IGNORED";
