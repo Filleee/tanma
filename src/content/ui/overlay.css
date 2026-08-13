@@ -935,6 +935,12 @@ select,
   border-radius: 6px;
   white-space: nowrap;
 }
+/* Colour by rarity band (lower rank = more common): green → blue → darker blue → yellow → orange. */
+.tnm-freq[data-rarity="1"] { background: #1f7a4d; color: #d7ffe9; } /* ≤2k  very common */
+.tnm-freq[data-rarity="2"] { background: #235fd0; color: #dbe8ff; } /* ≤5k  common */
+.tnm-freq[data-rarity="3"] { background: #1b2f7a; color: #c3d2ff; } /* ≤10k moderate */
+.tnm-freq[data-rarity="4"] { background: #b8860b; color: #fff3cf; } /* ≤25k getting rare */
+.tnm-freq[data-rarity="5"] { background: #c25a1c; color: #ffe3cf; } /* >25k rare */
 .tnm-lookup__section {
   margin-top: 10px;
   padding-top: 8px;

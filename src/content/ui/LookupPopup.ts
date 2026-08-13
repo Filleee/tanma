@@ -52,6 +52,15 @@ function furiEl(cls: string, surface: string, reading: string, rt: (s: string) =
   return wrap;
 }
 
+/** Bucket a frequency RANK (lower = more common) into a rarity band for colour-coding. */
+function freqRarity(value: number): string {
+  if (value <= 2000) return "1"; // very common
+  if (value <= 5000) return "2"; // common
+  if (value <= 10000) return "3"; // moderate
+  if (value <= 25000) return "4"; // getting rare
+  return "5"; // rare
+}
+
 const STATUSES: KnownStatus[] = ["UNKNOWN", "LEARNING", "KNOWN"];
 const STATUS_LABEL: Record<string, string> = { UNKNOWN: "Unknown", LEARNING: "Learning", KNOWN: "Known" };
 
@@ -420,7 +429,11 @@ export class LookupPopup {
     clear(row);
     for (const f of result.frequencies) {
       row.append(
-        el("span", { class: "tnm-freq tnm-tip", "data-tip": f.dict }, `${f.dict.split(/[\s(]/)[0]}: ${f.display}`),
+        el(
+          "span",
+          { class: "tnm-freq tnm-tip", "data-tip": f.dict, "data-rarity": freqRarity(f.value) },
+          `${f.dict.split(/[\s(]/)[0]}: ${f.display}`,
+        ),
       );
     }
   }
