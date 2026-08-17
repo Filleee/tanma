@@ -2227,9 +2227,20 @@ export class App {
         this.ytTracks = [];
         this.targetTrackAsr = false;
         this.captionTries = 0;
+        this.sawTargetTrack = false;
         clearTimeout(this.captionHintTimer);
         this.setTargetTrack(null);
         this.setSecondaryTrack(null);
+        // Kick the enable now — don't wait for the track-list message, which sometimes lags or
+        // never arrives (player not ready). The inject enables by lang (or clicks CC); the retry
+        // loop keeps trying, and the "couldn't load" toast is suppressed until we confirm a track.
+        if (this.settings.enabled) {
+          window.postMessage(
+            { source: "tnm-cmd", cmd: "enableCaptions", lang: this.settings.targetLang, translateTo: this.translateTo() },
+            "*",
+          );
+          this.scheduleCaptionRetry();
+        }
       }
     } else if (data.kind === "tracks") {
       this.ytVideoId = data.videoId;
@@ -2242,6 +2253,7 @@ export class App {
       // Auto-enable the target-language captions so that request fires — no manual
       // CC click needed. We still intercept + hide YouTube's native rendering.
       const haveTarget = tracks.some((t) => normalizeLang(t.lang) === normalizeLang(this.settings.targetLang));
+      if (haveTarget) this.sawTargetTrack = true;
       if (haveTarget && !this.targetTrack && this.settings.enabled) {
         this.captionTries = 0;
         window.postMessage(
@@ -2307,17 +2319,22 @@ export class App {
    * giving up — this is what otherwise needs a manual CC-button click.
    */
   private captionTries = 0;
+  /** True once we've seen a target-language track in YouTube's list — so a genuine
+   *  "couldn't load" is worth a toast, but a video that simply has no such captions stays quiet. */
+  private sawTargetTrack = false;
   private scheduleCaptionRetry(): void {
     clearTimeout(this.captionHintTimer);
     this.captionHintTimer = window.setTimeout(() => {
       if (this.targetTrack || !this.settings.enabled) return; // captions arrived (or disabled)
-      if (this.captionTries++ < 5) {
+      // ~30s window (12 × 2.5s): YouTube's player module / caption fetch can be slow, and the
+      // track-list message can lag, so keep re-asking (the inject enables by lang or clicks CC).
+      if (this.captionTries++ < 12) {
         window.postMessage(
           { source: "tnm-cmd", cmd: "enableCaptions", lang: this.settings.targetLang, translateTo: this.translateTo() },
           "*",
         );
         this.scheduleCaptionRetry();
-      } else {
+      } else if (this.sawTargetTrack) {
         this.toast("Couldn't auto-load captions — try YouTube's CC button or import a file.");
       }
     }, 2500);

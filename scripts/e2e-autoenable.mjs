@@ -36,7 +36,7 @@ const context = await chromium.launchPersistentContext("", {
 await context.addInitScript(() => {
   window.__cmds = [];
   window.addEventListener("message", (e) => {
-    if (e.data && e.data.source === "tnm-clone-cmd") window.__cmds.push(e.data);
+    if (e.data && e.data.source === "tnm-cmd") window.__cmds.push(e.data);
   });
 });
 
