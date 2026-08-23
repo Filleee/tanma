@@ -71,6 +71,9 @@ class Reader {
    *  several threads (UI, choices, dialogue, dirty glyph hooks) — picking the clean
    *  dialogue thread is the standard texthooker step. Remembered per game process. */
   private hooksSeen = new Map<string, string>();
+  /** Latest line seen per hook — shown as a preview in the picker so you can tell which thread
+   *  is the clean dialogue without clicking each one. */
+  private lastByHook = new Map<string, string>();
   private hookFilter = "";
   private currentProcess = "";
   /** The hook thread that carries the speaker NAME (VNs render it separately). Its
@@ -351,6 +354,7 @@ class Reader {
     // Defense in depth: never show hooker status messages as game text.
     if (/^(Textractor|vnreng):/.test(text)) return;
     this.trackHook(hookKey, hookName, process);
+    this.updateHookPreview(hookKey, text.trim());
     this.addLine(text.trim(), time, process, hookKey);
   }
 
@@ -366,7 +370,11 @@ class Reader {
 
     const sel = $<HTMLSelectElement>("hook-filter");
     sel.replaceChildren(new Option("All hooks", ""));
-    for (const [key, name] of this.hooksSeen) sel.append(new Option(name, key));
+    for (const [key, name] of this.hooksSeen) {
+      const o = new Option(this.hookLabel(key, name), key);
+      o.title = this.lastByHook.get(key) || ""; // full latest line on hover
+      sel.append(o);
+    }
     sel.value = this.hookFilter && this.hooksSeen.has(this.hookFilter) ? this.hookFilter : "";
     sel.style.display = this.hooksSeen.size > 1 ? "" : "none";
     sel.onchange = () => {
@@ -385,6 +393,28 @@ class Reader {
       this.nameHook = nameSel.value;
       if (this.currentProcess) localStorage.setItem(`tnm-reader-namehook:${this.currentProcess}`, nameSel.value);
     };
+  }
+
+  /** "<name> — <latest line preview>" for a hook option (name alone until a line arrives). */
+  private hookLabel(key: string, name: string): string {
+    const p = (this.lastByHook.get(key) || "").replace(/\s+/g, " ").trim();
+    return p ? `${name} — ${p.length > 40 ? p.slice(0, 40) + "…" : p}` : name;
+  }
+
+  /** Record a hook's newest line and refresh its picker option's preview (label + hover title). */
+  private updateHookPreview(hookKey: string, text: string): void {
+    if (!hookKey || !text) return;
+    this.lastByHook.set(hookKey, text);
+    const name = this.hooksSeen.get(hookKey);
+    if (!name) return; // not registered yet — trackHook builds it with the preview
+    const sel = $<HTMLSelectElement>("hook-filter");
+    for (const opt of Array.from(sel.options)) {
+      if (opt.value === hookKey) {
+        opt.text = this.hookLabel(hookKey, name);
+        opt.title = text;
+        break;
+      }
+    }
   }
 
   /** Show only the chosen hook's lines (others stay in memory, hidden). */
