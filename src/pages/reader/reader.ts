@@ -386,7 +386,11 @@ class Reader {
     // Which thread carries the speaker name (e.g. 【ムラサメ】 fires just before dialogue).
     const nameSel = $<HTMLSelectElement>("name-hook");
     nameSel.replaceChildren(new Option("Name: (none)", ""));
-    for (const [key, name] of this.hooksSeen) nameSel.append(new Option(`Name: ${name}`, key));
+    for (const [key, name] of this.hooksSeen) {
+      const o = new Option(`Name: ${this.hookLabel(key, name)}`, key);
+      o.title = this.lastByHook.get(key) || "";
+      nameSel.append(o);
+    }
     nameSel.value = this.nameHook && this.hooksSeen.has(this.nameHook) ? this.nameHook : "";
     nameSel.style.display = this.hooksSeen.size > 1 ? "" : "none";
     nameSel.onchange = () => {
@@ -407,12 +411,14 @@ class Reader {
     this.lastByHook.set(hookKey, text);
     const name = this.hooksSeen.get(hookKey);
     if (!name) return; // not registered yet — trackHook builds it with the preview
-    const sel = $<HTMLSelectElement>("hook-filter");
-    for (const opt of Array.from(sel.options)) {
-      if (opt.value === hookKey) {
-        opt.text = this.hookLabel(hookKey, name);
-        opt.title = text;
-        break;
+    const base = this.hookLabel(hookKey, name);
+    for (const [id, prefix] of [["hook-filter", ""], ["name-hook", "Name: "]] as const) {
+      for (const opt of Array.from($<HTMLSelectElement>(id).options)) {
+        if (opt.value === hookKey) {
+          opt.text = prefix + base;
+          opt.title = text;
+          break;
+        }
       }
     }
   }
