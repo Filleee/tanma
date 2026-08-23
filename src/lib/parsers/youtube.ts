@@ -157,10 +157,15 @@ function normaliseAllCaps(cues: Cue[], lang?: string): Cue[] {
  * the active cue tracks the speech (and our hint-sticky lookup doesn't lag a line
  * behind). Trims to clean, back-to-back ranges.
  */
+const MAX_HOLD = 15; // don't let a line linger more than this into a silence
+
 function trimOverlaps(cues: Cue[]): Cue[] {
   for (let i = 0; i < cues.length - 1; i++) {
     const next = cues[i + 1];
-    if (next.start > cues[i].start && next.start < cues[i].end) cues[i].end = next.start;
+    // Make cues SEQUENTIAL: each stays until the next appears — trims an overlap AND fills a gap,
+    // so a line isn't taken down mid-dialogue during a natural pause. Capped so it doesn't hang
+    // through a long silence.
+    if (next.start > cues[i].start) cues[i].end = Math.min(next.start, cues[i].start + MAX_HOLD);
   }
   return cues;
 }
