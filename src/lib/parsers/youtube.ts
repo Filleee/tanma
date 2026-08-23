@@ -165,7 +165,52 @@ function trimOverlaps(cues: Cue[]): Cue[] {
   return cues;
 }
 
-/** Shared finishing pipeline: clean -> drop noise -> sort -> de-dup -> trim -> case-fix -> re-id. */
+/** Split text into sentences, keeping the terminator (and any trailing close-quote/bracket). */
+function splitSentences(text: string): string[] {
+  const out: string[] = [];
+  const chars = Array.from(text);
+  let cur = "";
+  for (let i = 0; i < chars.length; i++) {
+    cur += chars[i];
+    if ("。．.!?！？".includes(chars[i])) {
+      while (i + 1 < chars.length && "」』】）)".includes(chars[i + 1])) cur += chars[++i];
+      out.push(cur);
+      cur = "";
+    }
+  }
+  if (cur.trim()) out.push(cur);
+  return out.map((s) => s.trim()).filter(Boolean);
+}
+
+/**
+ * YouTube's rolling ASR often packs several spoken sentences into ONE long cue, shown all at once
+ * at its start — so later sentences appear on screen before they're actually said. Split a long,
+ * multi-sentence cue into one cue per sentence, sharing the cue's [start,end] proportionally to
+ * each sentence's length so each shows roughly when it's spoken. Short/single-sentence cues are
+ * left alone (manual captions are already one line per cue).
+ */
+function splitLongCues(cues: Cue[]): Cue[] {
+  const out: Cue[] = [];
+  for (const c of cues) {
+    const dur = c.end - c.start;
+    const parts = splitSentences(c.text);
+    if (parts.length < 2 || dur < 4) {
+      out.push(c);
+      continue;
+    }
+    const lens = parts.map((p) => p.replace(/\s/g, "").length || 1);
+    const total = lens.reduce((a, b) => a + b, 0);
+    let t = c.start;
+    parts.forEach((p, i) => {
+      const end = i === parts.length - 1 ? c.end : t + (dur * lens[i]) / total;
+      out.push({ id: 0, start: t, end, text: p });
+      t = end;
+    });
+  }
+  return out;
+}
+
+/** Shared finishing pipeline: clean -> drop noise -> sort -> de-dup -> trim -> split long -> case-fix -> re-id. */
 function finalize(cues: Cue[], lang?: string): Cue[] {
   let c = cues
     .map((x) => ({ ...x, text: cleanText(x.text) }))
@@ -174,6 +219,7 @@ function finalize(cues: Cue[], lang?: string): Cue[] {
   c = mergeAlike(c);
   c = mergeSameSpan(c);
   c = trimOverlaps(c);
+  c = splitLongCues(c);
   c = normaliseAllCaps(c, lang);
   c.forEach((x, i) => (x.id = i));
   return c;
