@@ -237,10 +237,32 @@ export function parseYoutubeJson3(json: any, lang?: string): Cue[] {
   const cues: Cue[] = [];
   for (const ev of events) {
     if (!ev.segs) continue;
-    const text = ev.segs.map((s: any) => s.utf8 ?? "").join("");
-    const start = (ev.tStartMs ?? 0) / 1000;
-    const dur = (ev.dDurationMs ?? 0) / 1000;
-    cues.push({ id: 0, start, end: start + (dur || 4), text });
+    const evStart = (ev.tStartMs ?? 0) / 1000;
+    const evEnd = evStart + ((ev.dDurationMs ?? 0) / 1000 || 4);
+    const segs = (ev.segs as any[]).filter((s) => (s.utf8 ?? "") !== "" && s.utf8 !== "\n");
+    if (!segs.length) continue;
+    // Auto-captions stamp each word with its spoken time (tOffsetMs) — YouTube's own speech
+    // recognition. Use it to give each SENTENCE the time its first word is actually said, instead
+    // of dumping the whole rolling line at the event's start. (Ends overrun; trimOverlaps in
+    // finalize clips each to the next cue → clean, voice-aligned ranges.)
+    const hasWordTiming = segs.some((s) => typeof s.tOffsetMs === "number" && s.tOffsetMs > 0);
+    if (!hasWordTiming) {
+      cues.push({ id: 0, start: evStart, end: evEnd, text: segs.map((s) => s.utf8).join("") });
+      continue;
+    }
+    let buf = "";
+    let sentStart = evStart;
+    const flush = () => {
+      if (buf.trim()) cues.push({ id: 0, start: sentStart, end: evEnd, text: buf });
+      buf = "";
+    };
+    for (const s of segs) {
+      if (!buf) sentStart = evStart + (s.tOffsetMs ?? 0) / 1000;
+      buf += s.utf8;
+      const last = buf.trimEnd().slice(-1);
+      if ("。．.!?！？".includes(last)) flush();
+    }
+    flush();
   }
   return finalize(cues, lang);
 }
