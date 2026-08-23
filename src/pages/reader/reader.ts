@@ -423,6 +423,13 @@ class Reader {
     }
   }
 
+  /** True when a line has an open Japanese quote (more 「/『 than 」/』) — its bubble isn't done. */
+  private unclosedQuote(s: string): boolean {
+    const opens = (s.match(/[「『]/g) || []).length;
+    const closes = (s.match(/[」』]/g) || []).length;
+    return opens > closes;
+  }
+
   /** Show only the chosen hook's lines (others stay in memory, hidden). */
   private applyHookFilter(): void {
     for (const line of this.lines) {
@@ -476,6 +483,20 @@ class Reader {
         return;
       }
       if (prev.text.startsWith(text)) return; // shrunk re-emit (redraw) — ignore
+    }
+
+    // Continuation SEGMENT of an unclosed quoted line: VN engines emit a speech bubble as
+    // several lines (「……なるほど。 then これが…」). Merge into the still-open line instead of a
+    // new row. A new bubble starts with 「/『/【, so it won't wrongly merge; once the closing 」
+    // balances the quote it self-terminates.
+    if (prev && time - prev.time < 30 && this.unclosedQuote(prev.text) && !/^[「『【]/.test(text)) {
+      this.charCount += text.replace(/\s/g, "").length;
+      prev.text += text;
+      prev.el.querySelector(".tnm-sentence")?.replaceWith(this.renderLine(prev));
+      this.translated.delete(prev);
+      this.scheduleTranslate(prev);
+      this.renderStats();
+      return;
     }
 
     $("empty").style.display = "none";
