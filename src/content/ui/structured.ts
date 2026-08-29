@@ -10,25 +10,15 @@ const ALLOWED = new Set([
   "tbody", "tr", "td", "th", "details", "summary",
 ]);
 
-// Mirror (a safe subset of) the styles Yomitan applies from a dictionary's structured content,
-// so Jitendex's example-sentence/note boxes, borders, colours and spacing render like they do in
-// Yomitan — instead of flattening. Layout-escape props (position/top/left/float/z-index) are left
-// out on purpose. Dictionary data is user-imported and rendered inside the card, so this is safe.
-const SAFE_STYLE = new Set([
-  // text
-  "fontStyle", "fontWeight", "fontSize", "fontFamily", "color", "textAlign", "textDecorationLine",
-  "textDecoration", "textEmphasis", "textShadow", "verticalAlign", "whiteSpace", "wordBreak",
-  "overflowWrap", "lineHeight", "letterSpacing", "listStyleType", "listStylePosition", "opacity",
-  // spacing
-  "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
-  "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
-  // box / layout (non-escaping)
-  "display", "gap", "columnGap", "rowGap", "alignItems", "justifyContent", "flexDirection",
-  "flexWrap", "width", "height", "maxWidth", "maxHeight", "minWidth", "minHeight", "boxSizing",
-  // borders + background
-  "background", "backgroundColor", "borderRadius",
-  "border", "borderTop", "borderRight", "borderBottom", "borderLeft",
-  "borderColor", "borderStyle", "borderWidth",
+// Render the styles a dictionary's structured content asks for (Jitendex's example-sentence/note
+// boxes, borders, colours, spacing) so cards look like they do in Yomitan — instead of flattening.
+// Rather than an allowlist (which kept dropping props like border longhands and mismatching the
+// look), we render everything EXCEPT the handful of layout-escape properties that could break out
+// of the card. Dictionary data is user-imported and rendered inside the card, so this is safe.
+const BLOCKED_STYLE = new Set([
+  "position", "top", "right", "bottom", "left", "inset",
+  "float", "clear", "zIndex", "z-index",
+  "transform", "transformOrigin", "transform-origin",
 ]);
 
 /** Resolves a dictionary-bundled media path to a data: URL (or null). */
@@ -99,7 +89,7 @@ function renderSC(node: SCNode, media?: MediaResolver): Node {
   }
   if (elem.style && typeof elem.style === "object") {
     for (const [k, v] of Object.entries(elem.style)) {
-      if (SAFE_STYLE.has(k)) (node2.style as any)[k] = typeof v === "number" ? `${v}em` : String(v);
+      if (!BLOCKED_STYLE.has(k)) (node2.style as any)[k] = typeof v === "number" ? `${v}em` : String(v);
     }
   }
   if (elem.content != null) node2.append(renderSC(elem.content, media));
