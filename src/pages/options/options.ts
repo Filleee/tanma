@@ -17,7 +17,7 @@ import {
   parseTagBank,
 } from "../../lib/yomitan/parse";
 import type { DictionaryMeta } from "../../lib/yomitan/types";
-import { CATALOG, type CatalogEntry } from "./catalog";
+import { CATALOG, githubRepo, type CatalogEntry } from "./catalog";
 import { loadSettings, saveSettings, mergeMined, clearMined, KnownWordsStore, MinedStore, loadRecentMined, migrateLegacyKeys } from "../../lib/storage";
 import { ACCENTS, applyAccentVars } from "../../lib/theme";
 import type { Settings, ActivationRule } from "../../common/types";
@@ -1123,6 +1123,22 @@ function renderCatalog(dicts: DictionaryMeta[]) {
     const action = row.querySelector(".cat__action")!;
     if (isInstalled) {
       action.innerHTML = `<span class="installed-chip">✓ Installed</span>`;
+      // For release-tracked dicts, check GitHub for a newer version and offer a one-click update.
+      const dict = dicts.find((d) => d.catalogId === entry.id);
+      if (dict) {
+        checkCatalogUpdate(entry, dict)
+          .then((latest) => {
+            if (!latest) return;
+            const btn = document.createElement("button");
+            btn.className = "btn-primary";
+            btn.textContent = `⟳ Update`;
+            btn.title = `Newer version available (${latest}); installed: ${dict.revision || "?"}`;
+            btn.addEventListener("click", () => updateDict(entry, dict.id, btn));
+            action.innerHTML = `<span class="installed-chip" style="color:#ffb020">↑ ${escapeHtml(latest)}</span>`;
+            action.append(btn);
+          })
+          .catch(() => {});
+      }
     } else {
       const btn = document.createElement("button");
       btn.className = "btn-primary";
@@ -1147,6 +1163,50 @@ async function downloadAndImport(entry: CatalogEntry, btn: HTMLButtonElement) {
   } catch (e: any) {
     setProgress(0, `Download failed: ${e?.message ?? e}`);
     btn.textContent = "Download";
+  } finally {
+    busy = false;
+    setDownloadButtonsDisabled(false);
+  }
+}
+
+/** Extract a YYYY-MM-DD date from a version/revision/tag string (these dicts are date-versioned). */
+function parseDateKey(s: unknown): number | null {
+  const m = String(s ?? "").match(/(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/);
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null;
+}
+
+/** Latest version label if the repo's newest release is newer than the installed revision, else null. */
+async function checkCatalogUpdate(entry: CatalogEntry, dict: DictionaryMeta): Promise<string | null> {
+  const repo = githubRepo(entry.url);
+  const installed = parseDateKey(dict.revision);
+  if (!repo || installed == null) return null;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers: { Accept: "application/vnd.github+json" } });
+    if (!res.ok) return null;
+    const j = (await res.json()) as { tag_name?: string; name?: string; published_at?: string };
+    const latest = parseDateKey(j.tag_name) ?? parseDateKey(j.name) ?? parseDateKey(j.published_at);
+    if (latest == null || latest <= installed) return null;
+    return j.tag_name || new Date(latest).toISOString().slice(0, 10);
+  } catch {
+    return null;
+  }
+}
+
+/** Download the latest release and replace the installed copy (delete old → import new). */
+async function updateDict(entry: CatalogEntry, oldId: number, btn: HTMLButtonElement) {
+  if (busy) return;
+  busy = true;
+  setDownloadButtonsDisabled(true);
+  btn.textContent = "Updating…";
+  try {
+    const data = await downloadWithProgress(entry);
+    await deleteDictionary(oldId);
+    await importData(entry.title, data, entry.id);
+    await refresh();
+    hideProgressSoon();
+  } catch (e: any) {
+    setProgress(0, `Update failed: ${e?.message ?? e}`);
+    btn.textContent = "⟳ Update";
   } finally {
     busy = false;
     setDownloadButtonsDisabled(false);

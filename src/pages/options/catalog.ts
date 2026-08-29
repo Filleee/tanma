@@ -59,3 +59,10 @@ export const CATALOG: CatalogEntry[] = [
     attribution: "BCCWJ frequency (Kuuuube) — see repo for license",
   },
 ];
+
+/** "owner/repo" for a catalog entry that tracks a GitHub `releases/latest` asset (updatable via
+ *  the GitHub API), else null — pinned raw-file dicts (e.g. Kuuuube) have no "latest" to check. */
+export function githubRepo(url: string): string | null {
+  const m = url.match(/github\.com\/([^/]+\/[^/]+)\/releases\/latest\//);
+  return m ? m[1] : null;
+}
