@@ -42,6 +42,9 @@ export interface DictionaryMeta {
   order: number;
   /** Set when installed from the built-in download catalog (catalog entry id). */
   catalogId?: string;
+  /** The dictionary's bundled `styles.css` (Yomitan structured-content styling, e.g. Jitendex's
+   *  example/note boxes + tag chips). Injected into mined Anki cards so they look like Yomitan. */
+  styles?: string;
   hasTerms: boolean;
   hasFreq: boolean;
   hasKanji: boolean;

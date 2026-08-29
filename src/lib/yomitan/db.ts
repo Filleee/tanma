@@ -149,10 +149,10 @@ function deleteByDictId(db: IDBDatabase, store: string, dictId: number): Promise
 
 // ---------------------------------------------------------------- lookup API
 
-async function enabledOrder(): Promise<Map<number, { order: number; title: string }>> {
+async function enabledOrder(): Promise<Map<number, { order: number; title: string; styles?: string }>> {
   const dicts = await listDictionaries();
-  const m = new Map<number, { order: number; title: string }>();
-  for (const d of dicts) if (d.enabled) m.set(d.id, { order: d.order, title: d.title });
+  const m = new Map<number, { order: number; title: string; styles?: string }>();
+  for (const d of dicts) if (d.enabled) m.set(d.id, { order: d.order, title: d.title, styles: d.styles });
   return m;
 }
 
@@ -162,7 +162,7 @@ async function getAllByIndex(store: string, index: string, key: string): Promise
 }
 
 /** Look up term entries matching any of the given keys (by expression or reading). */
-export async function lookupTerms(keys: string[]): Promise<{ enabled: Map<number, { order: number; title: string }>; terms: TermRecord[] }> {
+export async function lookupTerms(keys: string[]): Promise<{ enabled: Map<number, { order: number; title: string; styles?: string }>; terms: TermRecord[] }> {
   const enabled = await enabledOrder();
   if (enabled.size === 0) return { enabled, terms: [] };
   const uniq = [...new Set(keys.filter(Boolean))];

@@ -314,6 +314,9 @@ export interface DictSection {
   source: "imported" | "jisho" | "wiktionary";
   /** Present for imported dictionaries — lets the popup fetch dictionary-bundled media. */
   dictId?: number;
+  /** The dictionary's bundled `styles.css` (structured-content styling), if any — injected into
+   *  mined Anki cards so Jitendex's example/note boxes and tag chips render like Yomitan. */
+  styles?: string;
   entries: DictSectionEntry[];
 }
 export interface KanjiInfo {

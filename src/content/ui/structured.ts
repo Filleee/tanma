@@ -85,7 +85,16 @@ function renderSC(node: SCNode, media?: MediaResolver): Node {
   }
   if (typeof elem.lang === "string") node2.setAttribute("lang", elem.lang);
   if (elem.data && typeof elem.data === "object") {
-    for (const [k, v] of Object.entries(elem.data)) node2.setAttribute(`data-${k}`, String(v));
+    // Yomitan namespaces structured-content data attributes under `sc`: a `data` key `content`
+    // becomes the attribute `data-sc-content` (via dataset.scContent). The lapis Anki template's
+    // Jitendex CSS keys entirely off these `data-sc-*` attributes (glossary → inline " | " list,
+    // data-sc-code → tag chips, example-sentence/forms/xref toggles), so we must match the prefix
+    // exactly — plain `data-content` matches nothing and the card renders flat. Mirror Yomitan:
+    // camelCase key → kebab attribute, all under `sc-`.
+    for (const [k, v] of Object.entries(elem.data)) {
+      const attr = "data-sc-" + k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+      node2.setAttribute(attr, String(v));
+    }
   }
   if (elem.style && typeof elem.style === "object") {
     for (const [k, v] of Object.entries(elem.style)) {
@@ -104,11 +113,56 @@ function escapeAttr(s: string): string {
   return s.replace(/[&"<>]/g, (c) => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;", ">": "&gt;" })[c] as string);
 }
 
+/** Escape a value for use inside a CSS `[attr="…"]` selector. */
+function cssAttrEscape(s: string): string {
+  return s.replace(/["\\]/g, "\\$&");
+}
+
+/**
+ * Prefix every top-level selector in a dictionary's `styles.css` with `scope`, so its rules only
+ * affect that dictionary's content in the mined card — not the other Anki fields or dictionaries.
+ * Yomitan dictionary styles (e.g. Jitendex) target their content via `data-sc-*` attributes and
+ * `&`-nested rules; nested rules are left as-is (they resolve against the now-scoped parent). CSS
+ * comments are stripped; there are no @-rules in Yomitan structured-content styles.css to handle.
+ */
+function scopeCss(css: string, scope: string): string {
+  const src = css.replace(/\/\*[\s\S]*?\*\//g, ""); // strip comments (cannot be nested)
+  let out = "";
+  let buf = "";
+  let depth = 0;
+  for (const c of src) {
+    if (depth === 0) {
+      if (c === "{") {
+        const sel = buf
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map((s) => `${scope} ${s}`)
+          .join(", ");
+        out += `${sel}{`;
+        buf = "";
+        depth = 1;
+      } else {
+        buf += c;
+      }
+    } else {
+      out += c;
+      if (c === "{") depth++;
+      else if (c === "}") depth--;
+    }
+  }
+  return out;
+}
+
 /**
  * Build a Yomitan-shaped glossary: `<div class="yomitan-glossary"><ol>` with one
  * `<li data-dictionary="NAME"><i>(tags, NAME)</i>…content…</li>` per entry. The
  * lapis card template parses dictionaries via `li[data-dictionary]`, so matching
  * this lets it de-duplicate the primary from the glossary and read pitch.
+ *
+ * A dictionary's bundled `styles.css` (Jitendex's example/note boxes + tag chips) is inlined as a
+ * scoped `<style>` block, since Anki — unlike the Yomitan popup — otherwise has no such CSS and the
+ * card renders flat. Each dict's CSS is scoped to its own `li[data-dictionary]` to avoid leaking.
  */
 export function yomitanGlossary(sections: import("../../common/types").DictSection[]): string {
   const items = sections.flatMap((sec) =>
@@ -118,5 +172,13 @@ export function yomitanGlossary(sections: import("../../common/types").DictSecti
     }),
   );
   if (!items.length) return "";
-  return `<div class="yomitan-glossary" style="text-align:left"><ol>${items.join("")}</ol></div>`;
+  const seen = new Set<string>();
+  const styleBlocks: string[] = [];
+  for (const sec of sections) {
+    if (!sec.styles || seen.has(sec.dictTitle)) continue;
+    seen.add(sec.dictTitle);
+    styleBlocks.push(scopeCss(sec.styles, `.yomitan-glossary li[data-dictionary="${cssAttrEscape(sec.dictTitle)}"]`));
+  }
+  const style = styleBlocks.length ? `<style>${styleBlocks.join("\n")}</style>` : "";
+  return `${style}<div class="yomitan-glossary" style="text-align:left"><ol>${items.join("")}</ol></div>`;
 }

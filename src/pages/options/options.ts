@@ -1126,18 +1126,26 @@ function renderCatalog(dicts: DictionaryMeta[]) {
       // For release-tracked dicts, check GitHub for a newer version and offer a one-click update.
       const dict = dicts.find((d) => d.catalogId === entry.id);
       if (dict) {
+        // A term dictionary installed before we captured styles.css has no example/note-box styling
+        // stored — offer a one-click re-import to gain it, even when there's no newer release.
+        const needsStyles = entry.kind === "terms" && !dict.styles && !!githubRepo(entry.url);
+        const offer = (label: string, tip: string) => {
+          const btn = document.createElement("button");
+          btn.className = "btn-primary";
+          btn.textContent = "⟳ Update";
+          btn.title = tip;
+          btn.addEventListener("click", () => updateDict(entry, dict.id, btn));
+          action.innerHTML = `<span class="installed-chip" style="color:#ffb020">↑ ${escapeHtml(label)}</span>`;
+          action.append(btn);
+        };
         checkCatalogUpdate(entry, dict)
           .then((latest) => {
-            if (!latest) return;
-            const btn = document.createElement("button");
-            btn.className = "btn-primary";
-            btn.textContent = `⟳ Update`;
-            btn.title = `Newer version available (${latest}); installed: ${dict.revision || "?"}`;
-            btn.addEventListener("click", () => updateDict(entry, dict.id, btn));
-            action.innerHTML = `<span class="installed-chip" style="color:#ffb020">↑ ${escapeHtml(latest)}</span>`;
-            action.append(btn);
+            if (latest) offer(latest, `Newer version available (${latest}); installed: ${dict.revision || "?"}`);
+            else if (needsStyles) offer("styling", "Re-import to add Yomitan example/note-box styling to mined cards");
           })
-          .catch(() => {});
+          .catch(() => {
+            if (needsStyles) offer("styling", "Re-import to add Yomitan example/note-box styling to mined cards");
+          });
       }
     } else {
       const btn = document.createElement("button");
@@ -1265,12 +1273,18 @@ async function importData(label: string, data: Uint8Array, catalogId?: string) {
   if (!indexFile) throw new Error("Not a Yomitan dictionary (no index.json).");
   const index = parseIndex(JSON.parse(decode(indexFile)));
 
+  // Yomitan structured-content styling (Jitendex ships this as styles.css): the example/note
+  // boxes and tag chips are drawn entirely by this CSS via data-sc-* attributes, so we keep it
+  // to inject into mined Anki cards (matching Yomitan's look).
+  const styles = files["styles.css"] ? decode(files["styles.css"]) : "";
+
   const id = await createDictionary({
     title: index.title || label,
     revision: index.revision ?? "",
     enabled: true,
     order: (await listDictionaries()).length,
     catalogId,
+    styles,
     hasTerms: false, hasFreq: false, hasKanji: false, hasPitch: false,
     counts: { terms: 0, termMeta: 0, kanji: 0, tags: 0 },
     importedAt: Date.now(),

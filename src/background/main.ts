@@ -501,7 +501,7 @@ async function lookupOffline(
       tags: [...new Set([...resolveTags(t.defTags), ...resolveTags(t.termTags)])].slice(0, 8),
       glossary: t.glossary,
     }));
-    sections.push({ dictTitle: enabled.get(dictId)?.title ?? "Dictionary", source: "imported", dictId, entries });
+    sections.push({ dictTitle: enabled.get(dictId)?.title ?? "Dictionary", source: "imported", dictId, styles: enabled.get(dictId)?.styles, entries });
   }
 
   // frequencies: dedupe per dictionary, most-frequent first
