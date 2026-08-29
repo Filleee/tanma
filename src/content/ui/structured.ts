@@ -10,10 +10,25 @@ const ALLOWED = new Set([
   "tbody", "tr", "td", "th", "details", "summary",
 ]);
 
+// Mirror (a safe subset of) the styles Yomitan applies from a dictionary's structured content,
+// so Jitendex's example-sentence/note boxes, borders, colours and spacing render like they do in
+// Yomitan — instead of flattening. Layout-escape props (position/top/left/float/z-index) are left
+// out on purpose. Dictionary data is user-imported and rendered inside the card, so this is safe.
 const SAFE_STYLE = new Set([
-  "fontStyle", "fontWeight", "textDecorationLine", "textDecoration", "fontSize",
-  "color", "marginLeft", "marginTop", "marginBottom", "listStyleType",
-  "verticalAlign", "textAlign", "whiteSpace",
+  // text
+  "fontStyle", "fontWeight", "fontSize", "fontFamily", "color", "textAlign", "textDecorationLine",
+  "textDecoration", "textEmphasis", "textShadow", "verticalAlign", "whiteSpace", "wordBreak",
+  "overflowWrap", "lineHeight", "letterSpacing", "listStyleType", "listStylePosition", "opacity",
+  // spacing
+  "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
+  "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+  // box / layout (non-escaping)
+  "display", "gap", "columnGap", "rowGap", "alignItems", "justifyContent", "flexDirection",
+  "flexWrap", "width", "height", "maxWidth", "maxHeight", "minWidth", "minHeight", "boxSizing",
+  // borders + background
+  "background", "backgroundColor", "borderRadius",
+  "border", "borderTop", "borderRight", "borderBottom", "borderLeft",
+  "borderColor", "borderStyle", "borderWidth",
 ]);
 
 /** Resolves a dictionary-bundled media path to a data: URL (or null). */
