@@ -6,7 +6,7 @@ export interface CatalogEntry {
   id: string;
   title: string;
   desc: string;
-  kind: "terms" | "names" | "kanji" | "freq";
+  kind: "terms" | "names" | "kanji" | "freq" | "pitch";
   sizeMB: number;
   url: string;
   attribution: string;
@@ -39,6 +39,15 @@ export const CATALOG: CatalogEntry[] = [
     sizeMB: 1,
     url: "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download/KANJIDIC_english.zip",
     attribution: "KANJIDIC — EDRDG, CC BY-SA",
+  },
+  {
+    id: "kanjium-pitch",
+    title: "Kanjium Pitch Accents",
+    desc: "Pitch-accent (downstep) data — draws the accent graph on mined cards and colours readings.",
+    kind: "pitch",
+    sizeMB: 2,
+    url: "https://github.com/toasted-nutbread/yomichan-pitch-accent-dictionary/releases/latest/download/kanjium_pitch_accents.zip",
+    attribution: "Kanjium pitch accents (toasted-nutbread) — see repo for license",
   },
   {
     id: "jpdb",

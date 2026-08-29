@@ -92,7 +92,7 @@ const STYLE = `
   .cat__desc { color:#9a9bab; font-size:12px; margin-top:2px; }
   .cat__size { color:#75768a; font-size:11px; margin-top:2px; }
   .badge { font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px; background:#32333c; color:#cfd0db; }
-  .badge.-terms{background:#2b3a52;color:#9fc7ff}.badge.-freq{background:#3a3320;color:#ffd479}.badge.-kanji{background:#243a2c;color:#86e5ad}.badge.-names{background:#3a2a3f;color:#e3a9f0}
+  .badge.-terms{background:#2b3a52;color:#9fc7ff}.badge.-freq{background:#3a3320;color:#ffd479}.badge.-kanji{background:#243a2c;color:#86e5ad}.badge.-names{background:#3a2a3f;color:#e3a9f0}.badge.-pitch{background:#3a2436;color:#ff9ec9}
   .installed-chip { color:#36c275; font-weight:700; font-size:13px; white-space:nowrap; }
   table { width:100%; border-collapse:collapse; }
   td,th { text-align:left; padding:9px 8px; border-bottom:1px solid rgba(255,255,255,.07); vertical-align:middle; }
