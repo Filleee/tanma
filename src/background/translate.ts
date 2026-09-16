@@ -17,19 +17,19 @@ function remember(key: string, value: string): void {
   cache.set(key, value);
 }
 
-async function providerSettings(): Promise<{ provider: Provider; key: string }> {
+async function providerSettings(force?: Provider): Promise<{ provider: Provider; key: string }> {
   try {
     const all = await chrome.storage.local.get(SETTINGS_KEY);
     const s = (all[SETTINGS_KEY] ?? {}) as { mtProvider?: Provider; mtApiKey?: string };
-    return { provider: s.mtProvider === "deepl" ? "deepl" : "google", key: s.mtApiKey ?? "" };
+    return { provider: force ?? (s.mtProvider === "deepl" ? "deepl" : "google"), key: s.mtApiKey ?? "" };
   } catch {
-    return { provider: "google", key: "" };
+    return { provider: force ?? "google", key: "" };
   }
 }
 
-/** Translate `texts` from → to using the configured provider, with caching + dedupe. */
-export async function translateText(texts: string[], from: string, to: string): Promise<string[]> {
-  const { provider, key } = await providerSettings();
+/** Translate `texts` from → to. `force` overrides the configured provider (mined-card path). */
+export async function translateText(texts: string[], from: string, to: string, force?: Provider): Promise<string[]> {
+  const { provider, key } = await providerSettings(force);
   const out = new Array<string>(texts.length).fill("");
   const todo: { i: number; text: string }[] = [];
   texts.forEach((raw, i) => {

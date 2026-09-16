@@ -54,6 +54,9 @@ export interface Token {
   pos: string;
   /** True for punctuation / whitespace / symbols that shouldn't be interactive. */
   isWord: boolean;
+  /** Morpheme breakdown, set only when the Japanese merge glued several together. Kept so a
+   *  dictionary-validated pass can re-split an over-merge (see lib/splitTokens.ts). */
+  parts?: Token[];
 }
 
 export interface DictEntry {
@@ -144,6 +147,32 @@ export interface Settings {
    *  in sync across browsers/devices via Anki, since chrome.storage.local doesn't sync). */
   ankiAutoSyncMined: boolean;
 
+  // ---- Mined-card translation (writes into an Anki field, e.g. Kiku's SentenceTranslation) ----
+  /** Translate the mined line and write it into `trField`. OFF by default; mining-only (the live
+   *  secondary subtitle line keeps using mtProvider — an LLM per line would be slow + costly). */
+  trEnabled: boolean;
+  /** Anki field the translation is written to ("" = skip). Filtered out if the note type lacks it. */
+  trField: string;
+  /** Provider for the mined translation, independent of the live line's `mtProvider`. */
+  trProvider: "google" | "deepl" | "openai" | "gemini";
+  /** OpenAI-compatible base URL, e.g. https://api.openai.com/v1 (no trailing /chat/completions). */
+  trOpenaiUrl: string;
+  trOpenaiModel: string;
+  /** Tried when the primary model errors out. "" = no fallback. */
+  trOpenaiBackupModel: string;
+  trOpenaiKey: string;
+  trGeminiModel: string;
+  trGeminiKey: string;
+  /** Subtitle lines of context handed to the LLM around the mined line. Unlike a text hooker we
+   *  have the whole track, so we can look FORWARD too — Japanese resolves dropped subjects later. */
+  trContextBefore: number;
+  trContextAfter: number;
+  trTemperature: number;
+  trMaxTokens: number;
+  trTopP: number;
+  /** Custom prompt template; "" = the built-in canned prompt. */
+  trPrompt: string;
+
   // ---- Look-up interaction + keybindings (global, not per-site) ----
   /** Match multi-word expressions on look-up (歳+食っちゃい → 歳食う), Yomitan-style.
    *  Off = look up exactly the clicked token, nothing else. */
@@ -213,6 +242,21 @@ export const DEFAULT_SETTINGS: Settings = {
   ankiAnimatedImage: false,
   ankiSyncDecks: [],
   ankiAutoSyncMined: false,
+  trEnabled: false,
+  trField: "SentenceTranslation",
+  trProvider: "google",
+  trOpenaiUrl: "https://api.openai.com/v1",
+  trOpenaiModel: "",
+  trOpenaiBackupModel: "",
+  trOpenaiKey: "",
+  trGeminiModel: "",
+  trGeminiKey: "",
+  trContextBefore: 8,
+  trContextAfter: 4,
+  trTemperature: 0.3,
+  trMaxTokens: 1024,
+  trTopP: 0.9,
+  trPrompt: "",
   compoundLookup: true,
   holdLookup: true,
   holdLookupOverlay: true,
@@ -249,10 +293,16 @@ export type BgRequest =
   | { type: "anilistResolve"; anilistId?: number; malId?: number }
   // ---- dictionary-bundled media (structured-content images) ----
   | { type: "dictMedia"; dictId: number; path: string }
+  // ---- which of these surfaces resolve to a dictionary entry (itself or a deinflection)? ----
+  | { type: "resolveForms"; forms: string[] }
   // ---- dictionary-assisted token merging: which expressions exist? ----
   | { type: "hasTerms"; terms: string[] }
   // ---- machine translation for the secondary line (provider/key read from settings) ----
   | { type: "translate"; texts: string[]; from: string; to: string }
+  // ---- translate ONE mined line (provider/prompt/context read from settings) ----
+  | { type: "aiTranslate"; sentence: string; word: string; title: string; context: string }
+  // ---- list Gemini models for the options dropdown ----
+  | { type: "geminiModels"; key: string }
   // ---- auto-sync mined tracking from the deck on startup ----
   | { type: "autoSyncMined" }
   // ---- mute this tab's audible output during batch (queue) mining ----
@@ -265,7 +315,10 @@ export type UpdateCheckResponse =
 export type BgResponse = { ok: true; result: LookupResult } | { ok: false; error: string };
 export type DictMediaResponse = { ok: true; dataUrl: string | null } | { ok: false; error: string };
 export type HasTermsResponse = { ok: true; found: { expression: string; reading: string }[] } | { ok: false; error: string };
+export type ResolveFormsResponse = { ok: true; resolved: { form: string; dict: string }[] } | { ok: false; error: string };
 export type TranslateResponse = { ok: true; texts: string[] } | { ok: false; error: string };
+export type AiTranslateResponse = { ok: true; text: string } | { ok: false; error: string };
+export type GeminiModelsResponse = { ok: true; models: string[] } | { ok: false; error: string };
 
 /** One LRCLIB match. `syncedLyrics` is an LRC string ([mm:ss.xx] lines); null when only
  *  plain (untimed) lyrics exist. */

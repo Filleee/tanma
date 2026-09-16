@@ -20,7 +20,8 @@ import type { DictionaryMeta } from "../../lib/yomitan/types";
 import { CATALOG, githubRepo, type CatalogEntry } from "./catalog";
 import { loadSettings, saveSettings, mergeMined, clearMined, KnownWordsStore, MinedStore, loadRecentMined, migrateLegacyKeys } from "../../lib/storage";
 import { ACCENTS, applyAccentVars } from "../../lib/theme";
-import type { Settings, ActivationRule } from "../../common/types";
+import type { Settings, ActivationRule, GeminiModelsResponse } from "../../common/types";
+import { CANNED_PROMPT } from "../../lib/prompt";
 
 const STYLE = `
   :root { color-scheme: dark; --accent:#ff9345; --good:#36c275; }
@@ -395,6 +396,65 @@ async function main() {
           <input id="mt-key" type="password" placeholder="paste your DeepL API key" />
         </div>
       </div>
+
+      <div class="card">
+        <h2>Mined-card translation</h2>
+        <p class="note">Translate the mined line and write it into an Anki field (Kiku's
+          <code>SentenceTranslation</code>). This runs <b>once per mined card</b>, not while you watch, so it can
+          afford an LLM with the surrounding dialogue as context. The live translation line above is unaffected.</p>
+        <label class="row"><span>Translate mined sentences</span>
+          <span class="switch"><input id="tr-enabled" type="checkbox"/><span class="tk"></span><span class="th"></span></span></label>
+        <div id="tr-config">
+          <div class="row"><span>Anki field<br>
+            <small style="color:#9a9bab;font-weight:400">Skipped automatically if your note type has no such field</small></span>
+            <select id="tr-field"></select></div>
+          <div class="row"><span>Provider</span>
+            <select id="tr-provider">
+              <option value="google">Google Translate (free, no key)</option>
+              <option value="deepl">DeepL (API key)</option>
+              <option value="openai">OpenAI-compatible</option>
+              <option value="gemini">Gemini</option>
+            </select></div>
+          <div id="tr-openai">
+            <div class="row"><span>API URL</span><input id="tr-openai-url" type="text" placeholder="https://api.openai.com/v1" /></div>
+            <div class="row"><span>Model</span><input id="tr-openai-model" type="text" placeholder="gpt-4o-mini" /></div>
+            <div class="row"><span>Backup model<br>
+              <small style="color:#9a9bab;font-weight:400">Tried if the primary model errors</small></span>
+              <input id="tr-openai-backup" type="text" placeholder="(optional)" /></div>
+            <div class="row"><span>API key</span><input id="tr-openai-key" type="password" placeholder="paste your API key" /></div>
+          </div>
+          <div id="tr-gemini">
+            <div class="row"><span>API key</span><input id="tr-gemini-key" type="password" placeholder="paste your Gemini API key" /></div>
+            <div class="row"><span>Model</span>
+              <span style="display:flex;gap:6px;align-items:center">
+                <select id="tr-gemini-model"></select>
+                <button id="tr-gemini-refresh" class="btn-ghost" title="Fetch available models">⟳</button>
+              </span></div>
+          </div>
+          <div id="tr-llm">
+            <div class="row"><span>Context lines before</span><input id="tr-before" type="number" min="0" max="50" /></div>
+            <div class="row"><span>Context lines after<br>
+              <small style="color:#9a9bab;font-weight:400">tanma holds the whole track, so it can look ahead — Japanese often
+                resolves dropped subjects in the next line</small></span>
+              <input id="tr-after" type="number" min="0" max="50" /></div>
+            <div class="row"><span>Temperature</span><input id="tr-temp" type="number" min="0" max="2" step="0.1" /></div>
+            <div class="row"><span>Max output tokens</span><input id="tr-maxtok" type="number" min="16" max="32768" /></div>
+            <div class="row"><span>Top P</span><input id="tr-topp" type="number" min="0" max="1" step="0.05" /></div>
+            <div class="row" style="align-items:flex-start"><span>Prompt<br>
+              <small style="color:#9a9bab;font-weight:400">Empty = built-in prompt. Placeholders:
+                {sentence} {context} {word} {title} {target_lang} {native_lang}</small></span>
+              <span style="display:flex;flex-direction:column;gap:6px;flex:1;max-width:60%">
+                <textarea id="tr-prompt" rows="8" placeholder="(using the built-in prompt)"
+                  style="background:#15161a;color:#f3f3f7;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:8px;font:12px/1.5 ui-monospace,monospace;resize:vertical"></textarea>
+                <span style="display:flex;gap:6px">
+                  <button id="tr-prompt-load" class="btn-ghost">Load built-in prompt</button>
+                  <button id="tr-prompt-clear" class="btn-ghost">Reset to built-in</button>
+                </span>
+              </span></div>
+          </div>
+          <span id="tr-status" class="status"></span>
+        </div>
+      </div>
       </section>
 
     </main>
@@ -431,6 +491,7 @@ async function main() {
   await setupKeybinds(root);
   await setupJimaku(root);
   await setupTranslation(root);
+  await setupMinedTranslation(root);
   await loadOverview(root); // after the others so it can reflect installed dicts / settings
 }
 
@@ -786,6 +847,147 @@ async function setupTranslation(root: HTMLElement): Promise<void> {
       const cur = await loadSettings();
       await saveSettings({ ...cur, mtApiKey: key.value.trim() });
     }, 300);
+  });
+}
+
+/**
+ * Mined-card translation: one call per mined card (not per subtitle line), so it can afford an LLM
+ * with surrounding dialogue as context. Off by default; independent of the live-line provider above.
+ */
+async function setupMinedTranslation(root: HTMLElement): Promise<void> {
+  const $ = <T extends HTMLElement>(id: string) => root.querySelector<T>(id)!;
+  const enabled = $<HTMLInputElement>("#tr-enabled");
+  const config = $<HTMLDivElement>("#tr-config");
+  const field = $<HTMLSelectElement>("#tr-field");
+  const provider = $<HTMLSelectElement>("#tr-provider");
+  const openai = $<HTMLDivElement>("#tr-openai");
+  const gemini = $<HTMLDivElement>("#tr-gemini");
+  const llm = $<HTMLDivElement>("#tr-llm");
+  const status = $<HTMLSpanElement>("#tr-status");
+  const oaUrl = $<HTMLInputElement>("#tr-openai-url");
+  const oaModel = $<HTMLInputElement>("#tr-openai-model");
+  const oaBackup = $<HTMLInputElement>("#tr-openai-backup");
+  const oaKey = $<HTMLInputElement>("#tr-openai-key");
+  const gmKey = $<HTMLInputElement>("#tr-gemini-key");
+  const gmModel = $<HTMLSelectElement>("#tr-gemini-model");
+  const gmRefresh = $<HTMLButtonElement>("#tr-gemini-refresh");
+  const before = $<HTMLInputElement>("#tr-before");
+  const after = $<HTMLInputElement>("#tr-after");
+  const temp = $<HTMLInputElement>("#tr-temp");
+  const maxTok = $<HTMLInputElement>("#tr-maxtok");
+  const topP = $<HTMLInputElement>("#tr-topp");
+  const promptBox = $<HTMLTextAreaElement>("#tr-prompt");
+  const promptLoad = $<HTMLButtonElement>("#tr-prompt-load");
+  const promptClear = $<HTMLButtonElement>("#tr-prompt-clear");
+
+  const s = await loadSettings();
+  const save = async (patch: Partial<Settings>) => {
+    const cur = await loadSettings();
+    await saveSettings({ ...cur, ...patch });
+  };
+
+  enabled.checked = s.trEnabled;
+  provider.value = s.trProvider;
+  oaUrl.value = s.trOpenaiUrl;
+  oaModel.value = s.trOpenaiModel;
+  oaBackup.value = s.trOpenaiBackupModel;
+  oaKey.value = s.trOpenaiKey;
+  gmKey.value = s.trGeminiKey;
+  before.value = String(s.trContextBefore);
+  after.value = String(s.trContextAfter);
+  temp.value = String(s.trTemperature);
+  maxTok.value = String(s.trMaxTokens);
+  topP.value = String(s.trTopP);
+  promptBox.value = s.trPrompt;
+
+  // Field list from the configured note type when Anki is reachable; otherwise just what's saved
+  // (addCard filters unknown fields anyway, so a stale value can't break mining).
+  const names = new Set<string>(["SentenceTranslation"]);
+  if (s.trField) names.add(s.trField);
+  try {
+    for (const n of (await anki("modelFieldNames", { modelName: s.ankiModel })) as string[]) names.add(n);
+  } catch {
+    /* Anki closed — keep the saved value selectable */
+  }
+  for (const n of names) field.append(new Option(n, n));
+  field.value = s.trField || "SentenceTranslation";
+
+  const reflect = () => {
+    config.classList.toggle("-off", !enabled.checked);
+    const llmish = provider.value === "openai" || provider.value === "gemini";
+    openai.style.display = provider.value === "openai" ? "" : "none";
+    gemini.style.display = provider.value === "gemini" ? "" : "none";
+    llm.style.display = llmish ? "" : "none"; // context/sampling/prompt only apply to an LLM
+  };
+  reflect();
+
+  enabled.addEventListener("change", () => {
+    reflect();
+    save({ trEnabled: enabled.checked });
+  });
+  provider.addEventListener("change", () => {
+    reflect();
+    save({ trProvider: provider.value as Settings["trProvider"] });
+  });
+  field.addEventListener("change", () => save({ trField: field.value }));
+  gmModel.addEventListener("change", () => save({ trGeminiModel: gmModel.value }));
+
+  const debounce = (el: HTMLElement, run: () => void) => {
+    let t = 0;
+    el.addEventListener("input", () => {
+      clearTimeout(t);
+      t = window.setTimeout(run, 300);
+    });
+  };
+  debounce(oaUrl, () => save({ trOpenaiUrl: oaUrl.value.trim() }));
+  debounce(oaModel, () => save({ trOpenaiModel: oaModel.value.trim() }));
+  debounce(oaBackup, () => save({ trOpenaiBackupModel: oaBackup.value.trim() }));
+  debounce(oaKey, () => save({ trOpenaiKey: oaKey.value.trim() }));
+  debounce(gmKey, () => save({ trGeminiKey: gmKey.value.trim() }));
+  debounce(promptBox, () => save({ trPrompt: promptBox.value }));
+  const num = (el: HTMLInputElement, key: string, min: number, max: number) =>
+    debounce(el, () => {
+      const v = Math.min(max, Math.max(min, Number(el.value) || 0));
+      save({ [key]: v } as unknown as Partial<Settings>);
+    });
+  num(before, "trContextBefore", 0, 50);
+  num(after, "trContextAfter", 0, 50);
+  num(temp, "trTemperature", 0, 2);
+  num(maxTok, "trMaxTokens", 16, 32768);
+  num(topP, "trTopP", 0, 1);
+
+  if (s.trGeminiModel) gmModel.append(new Option(s.trGeminiModel, s.trGeminiModel));
+  gmModel.value = s.trGeminiModel;
+  gmRefresh.addEventListener("click", async () => {
+    const key = gmKey.value.trim();
+    if (!key) {
+      status.textContent = "Enter a Gemini API key first.";
+      return;
+    }
+    status.textContent = "Fetching models…";
+    const res = (await chrome.runtime
+      .sendMessage({ type: "geminiModels", key })
+      .catch(() => null)) as GeminiModelsResponse | null;
+    if (!res?.ok) {
+      status.textContent = "Models: " + (res?.error ?? "failed");
+      return;
+    }
+    const keep = gmModel.value;
+    gmModel.replaceChildren();
+    for (const m of res.models) gmModel.append(new Option(m, m));
+    if (keep && !res.models.includes(keep)) gmModel.append(new Option(keep, keep));
+    gmModel.value = keep || res.models[0] || "";
+    if (gmModel.value) save({ trGeminiModel: gmModel.value });
+    status.textContent = `Loaded ${res.models.length} models ✓`;
+  });
+
+  promptLoad.addEventListener("click", () => {
+    promptBox.value = CANNED_PROMPT;
+    save({ trPrompt: CANNED_PROMPT });
+  });
+  promptClear.addEventListener("click", () => {
+    promptBox.value = "";
+    save({ trPrompt: "" });
   });
 }
 

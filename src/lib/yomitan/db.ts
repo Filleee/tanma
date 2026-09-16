@@ -225,6 +225,33 @@ export async function lookupPitch(keys: string[]): Promise<PitchRecord[]> {
 
 /** Which of these expressions have at least one entry in an enabled dictionary?
  *  Used for dictionary-assisted token merging (魔+族 -> 魔族). */
+/**
+ * Which of these keys match an enabled dictionary entry by EXPRESSION **or** READING?
+ *
+ * expressionsExist() below checks the expression index only, which is right for compound merging
+ * (魔+族) but wrong for deinflected verbs: Jitendex stores 強請る with reading ねだる, so a kana
+ * dictionary form like ねだる has no `expression` row at all. lookupTerms() searches both indexes
+ * for exactly this reason, and the token splitter needs the same reach.
+ */
+export async function formsExist(keys: string[]): Promise<string[]> {
+  const enabled = await enabledOrder();
+  if (enabled.size === 0) return [];
+  const out: string[] = [];
+  for (const k of [...new Set(keys.filter(Boolean))]) {
+    let hit = false;
+    for (const idx of ["expression", "reading"]) {
+      // eslint-disable-next-line no-await-in-loop
+      const rows = (await getAllByIndex(STORE_TERMS, idx, k)) as TermRecord[];
+      if (rows.some((r) => enabled.has(r.dictId))) {
+        hit = true;
+        break;
+      }
+    }
+    if (hit) out.push(k);
+  }
+  return out;
+}
+
 export async function expressionsExist(exprs: string[]): Promise<{ expression: string; reading: string }[]> {
   const enabled = await enabledOrder();
   if (enabled.size === 0) return [];

@@ -95,6 +95,27 @@ try {
 
   await page.screenshot({ path: resolve(testDir, "e2e-youtube-sim.png") });
   console.log("    screenshot: test/e2e-youtube-sim.png");
+
+  // Buffer + replay fix: the inject must re-deliver already-captured cues on a `replay` command
+  // (covers the content listener starting after the capture, and YouTube serving cached cues on a
+  // CC toggle with no network request for our hook to see).
+  const replayed = await page.evaluate(
+    () =>
+      new Promise((res) => {
+        let got = false;
+        const onMsg = (e) => {
+          const d = e.data;
+          if (d && d.source === "tnm-yt" && d.kind === "captionData" && d.body) got = true;
+        };
+        window.addEventListener("message", onMsg);
+        window.postMessage({ source: "tnm-cmd", cmd: "replay" }, "*");
+        setTimeout(() => {
+          window.removeEventListener("message", onMsg);
+          res(got);
+        }, 600);
+      }),
+  );
+  check("inject replays buffered captionData on `replay`", replayed);
 } catch (e) {
   console.log("  ❌ fatal:", String(e?.message || e));
   failures++;

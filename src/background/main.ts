@@ -16,11 +16,15 @@ import type {
   LrclibResponse,
   OnlineResponse,
   TranslateResponse,
+  AiTranslateResponse,
+  ResolveFormsResponse,
+  GeminiModelsResponse,
 } from "../common/types";
 import { translateText } from "./translate";
+import { aiTranslate, listGeminiModels } from "./aiTranslate";
 import { normalizeLang } from "../lib/tokenizer";
 import { loadSettings, mergeMined } from "../lib/storage";
-import { expressionsExist, getMediaDataUrl, lookupFrequencies, lookupKanji, lookupPitch, lookupTerms, getTagsForDict } from "../lib/yomitan/db";
+import { expressionsExist, formsExist, getMediaDataUrl, lookupFrequencies, lookupKanji, lookupPitch, lookupTerms, getTagsForDict } from "../lib/yomitan/db";
 import { deinflect } from "../lib/deinflect";
 import type { TermRecord } from "../lib/yomitan/types";
 import { addCard, proxy as ankiProxy } from "../lib/anki/ankiconnect";
@@ -91,6 +95,12 @@ chrome.runtime.onMessage.addListener((msg: BgRequest, _sender, sendResponse) => 
       .catch((e) => sendResponse({ ok: false, error: String(e?.message ?? e) }));
     return true; // async response
   }
+  if (msg?.type === "resolveForms") {
+    resolveForms(msg.forms ?? [])
+      .then((resolved) => sendResponse({ ok: true, resolved } satisfies ResolveFormsResponse))
+      .catch((e) => sendResponse({ ok: false, error: String(e?.message ?? e) } satisfies ResolveFormsResponse));
+    return true; // async response
+  }
   if (msg?.type === "hasTerms") {
     expressionsExist(msg.terms ?? [])
       .then((found) => sendResponse({ ok: true, found }))
@@ -101,6 +111,18 @@ chrome.runtime.onMessage.addListener((msg: BgRequest, _sender, sendResponse) => 
     translateText(msg.texts, msg.from, msg.to)
       .then((texts) => sendResponse({ ok: true, texts } satisfies TranslateResponse))
       .catch((e) => sendResponse({ ok: false, error: String(e?.message ?? e) } satisfies TranslateResponse));
+    return true; // async response
+  }
+  if (msg?.type === "aiTranslate") {
+    aiTranslate({ sentence: msg.sentence, word: msg.word, title: msg.title, context: msg.context })
+      .then((text) => sendResponse({ ok: true, text } satisfies AiTranslateResponse))
+      .catch((e) => sendResponse({ ok: false, error: String(e?.message ?? e) } satisfies AiTranslateResponse));
+    return true; // async response
+  }
+  if (msg?.type === "geminiModels") {
+    listGeminiModels(msg.key)
+      .then((models) => sendResponse({ ok: true, models } satisfies GeminiModelsResponse))
+      .catch((e) => sendResponse({ ok: false, error: String(e?.message ?? e) } satisfies GeminiModelsResponse));
     return true; // async response
   }
   if (msg?.type === "autoSyncMined") {
@@ -662,4 +684,30 @@ function bufToB64(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf);
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(bin);
+}
+
+/**
+ * For each surface, the dictionary headword it resolves to — itself, or one of its deinflections.
+ * This is the check that lets the content script re-split an over-merged token the way Yomitan
+ * segments: keep only the runs of morphemes that are actually words. Deinflection lives here
+ * because the rule table is background-only (it never ships in the content bundle).
+ */
+async function resolveForms(forms: string[]): Promise<{ form: string; dict: string }[]> {
+  const uniq = [...new Set(forms.filter(Boolean))];
+  if (!uniq.length) return [];
+  // Collect every candidate first so the dictionary is queried once, not once per surface.
+  const candidates = new Map<string, string[]>();
+  const all = new Set<string>();
+  for (const f of uniq) {
+    const cands = [f, ...deinflect(f)];
+    candidates.set(f, cands);
+    for (const c of cands) all.add(c);
+  }
+  const found = new Set(await formsExist([...all]));
+  const out: { form: string; dict: string }[] = [];
+  for (const f of uniq) {
+    const hit = (candidates.get(f) ?? []).find((c) => found.has(c));
+    if (hit) out.push({ form: f, dict: hit });
+  }
+  return out;
 }

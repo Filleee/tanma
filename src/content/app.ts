@@ -23,6 +23,8 @@ import type {
   Token,
   TranslateResponse,
   YtCaptionTrack,
+  AiTranslateResponse,
+  ResolveFormsResponse,
 } from "../common/types";
 import { buildLapisFields } from "../lib/anki/fields";
 import { loadSettings, saveHostSettings, loadOffset, saveOffset, loadSavedTrack, saveSavedTrack, loadQueue, saveQueue, GLOBAL_SETTINGS_KEY, hostSettingsKey, KnownWordsStore, MinedStore, migrateLegacyKeys } from "../lib/storage";
@@ -45,6 +47,7 @@ import { LookupPopup } from "./ui/LookupPopup";
 import { renderSentence, refreshTokenStatuses, tokenContextOf } from "./ui/tokens";
 import { buildCandidates } from "../lib/compound";
 import { mergeCompoundTokens } from "../lib/mergeTokens";
+import { splitOvermergedTokens, mergeFunctionRuns } from "../lib/splitTokens";
 import { pitchFields } from "../lib/pitch";
 import { frameSend, topWindow, type FrameMsg } from "./frameBus";
 import { renderGlossary, yomitanGlossary } from "./ui/structured";
@@ -241,6 +244,12 @@ export class App {
     });
 
     window.addEventListener("message", (e) => this.onWindowMessage(e));
+    // The YouTube inject (MAIN world, document_start) may have already captured caption tracks +
+    // cue bodies before this listener existed, and YouTube won't re-fetch cached cues on a CC
+    // toggle — so ask the inject to replay its buffer now, and a few more times as the player
+    // finishes coming up. Harmless off YouTube (nothing listens for tnm-cmd there).
+    this.requestYtReplay();
+    for (const d of [400, 1200, 3000, 6000]) window.setTimeout(() => this.requestYtReplay(), d);
     // Reveal the docked toolbar when the mouse is near the top of the video.
     document.addEventListener(
       "mousemove",
@@ -660,6 +669,10 @@ export class App {
     this.updateActive(); // SPA nav (e.g. youtube home → /watch) → re-check activation
     if (!this.ytVideoId) this.setMediaKey(location.href);
     this.autoLoadJimakuForPage().catch(() => {});
+    // SPA nav to a new /watch may land after the inject already captured this video's captions —
+    // pull its buffer so we don't depend on catching the live post.
+    this.requestYtReplay();
+    for (const d of [500, 1500, 4000]) window.setTimeout(() => this.requestYtReplay(), d);
   }
 
   /** Switch the media identity (used for per-video offset + bookmarks). */
@@ -990,10 +1003,26 @@ export class App {
     // Dictionary-assisted merging: IPADIC splits compounds it doesn't know (魔|族), so
     // re-segment against the user's dictionary and patch the line in place. Cached
     // pairs resolve in a microtask, so the swap is invisible after warm-up.
-    if (this.settings.compoundLookup && normalizeLang(this.settings.targetLang) === "ja") {
-      mergeCompoundTokens(tokens, (t) => this.hasTerms(t))
-        .then(({ tokens: merged, changed }) => {
-          if (changed && sentence.isConnected) sentence.replaceWith(renderSentence(merged, ctx));
+    if (normalizeLang(this.settings.targetLang) === "ja") {
+      // Two dictionary-assisted passes. SPLIT undoes what the morphological merge glued together
+      // too eagerly (ねだらないだろう -> ねだらない | だろう); MERGE then joins compounds IPADIC
+      // doesn't know (魔 | 族 -> 魔族). Splitting is a correctness fix so it always runs; merging
+      // stays behind compoundLookup. Cached forms resolve in a microtask, so after warm-up the
+      // swap is invisible.
+      splitOvermergedTokens(tokens, (f) => this.resolveForms(f))
+        .then(async ({ tokens: split, changed }) => {
+          // Then the other direction: join grammatical runs kuromoji leaves scattered
+          // (な | ん | です -> なんです), still gated on a real dictionary entry.
+          const r = await mergeFunctionRuns(split, (f) => this.resolveForms(f));
+          return { tokens: r.tokens, changed: changed || r.changed };
+        })
+        .then(async ({ tokens: split, changed }) => {
+          if (!this.settings.compoundLookup) return { tokens: split, changed };
+          const m = await mergeCompoundTokens(split, (t) => this.hasTerms(t));
+          return { tokens: m.tokens, changed: changed || m.changed };
+        })
+        .then(({ tokens: next, changed }) => {
+          if (changed && sentence.isConnected) sentence.replaceWith(renderSentence(next, ctx));
         })
         .catch(() => {});
     }
@@ -1003,6 +1032,12 @@ export class App {
   private async hasTerms(terms: string[]): Promise<{ expression: string; reading: string }[]> {
     const res = (await chrome.runtime.sendMessage({ type: "hasTerms", terms })) as HasTermsResponse;
     return res?.ok ? res.found : [];
+  }
+
+  /** Which of these morpheme runs are real words? (Background deinflects + checks the dictionary.) */
+  private async resolveForms(forms: string[]): Promise<{ form: string; dict: string }[]> {
+    const res = (await chrome.runtime.sendMessage({ type: "resolveForms", forms })) as ResolveFormsResponse;
+    return res?.ok ? res.resolved : [];
   }
 
   private syncSecondary(t: number): void {
@@ -1259,6 +1294,24 @@ export class App {
   private activeCue: Cue | null = null;
   private mining = false;
 
+  /** Dialogue around the mined line for the translator prompt: `trContextBefore` lines before and
+   *  `trContextAfter` after, with the mined line marked. We hold the WHOLE track, so unlike a text
+   *  hooker we can look forward too — Japanese often resolves dropped subjects in the next line. */
+  private mineContext(cue: Cue | null): string {
+    const cues = this.targetTrack?.cues ?? [];
+    if (!cue || !cues.length) return "";
+    let i = cues.findIndex((c) => c.id === cue.id);
+    if (i < 0) i = cues.findIndex((c) => c.start === cue.start && c.text === cue.text);
+    if (i < 0) return "";
+    const before = Math.max(0, Math.trunc(this.settings.trContextBefore));
+    const after = Math.max(0, Math.trunc(this.settings.trContextAfter));
+    const lines: string[] = [];
+    for (let k = Math.max(0, i - before); k <= Math.min(cues.length - 1, i + after); k++) {
+      lines.push((k === i ? "→ " : "  ") + cues[k].text);
+    }
+    return lines.join("\n");
+  }
+
   /** Gather word + sentence + definition + screenshot + word/sentence audio → AnkiConnect.
    *  Returns whether the card landed (ok or duplicate). `opts` drives batch queue mining:
    *  reading pins the reading captured when queued; quiet suppresses the per-card toasts/popup flip. */
@@ -1366,6 +1419,10 @@ export class App {
           const durMs = Math.min(12000, Math.max(300, (cue.end - cue.start) * 1000));
           const { video, audio } = await this.recordFromHere(v, durMs, { video: wantClip, audio: wantSentenceAudio }).catch(() => ({ video: null, audio: null }));
           if (wantClip && video) {
+            // The Picture is the recorded loop as a webm <video>. This plays on desktop AND on
+            // iOS/AnkiMobile (modern WebKit decodes VP9/webm), and for the <img>-only Kiku note type a
+            // companion Kiku plugin renders it — so no lossy WebP re-encode is needed. (History has the
+            // WebP converter, src/content/webp.ts, if a plugin-free img fallback is ever wanted.)
             const fn = `tnm_clip_${stamp}.${video.ext}`;
             media.push({ filename: fn, dataBase64: video.base64 });
             pictureHtml = `<video src="${fn}" autoplay loop muted playsinline style="${MEDIA_STYLE}"></video>`;
@@ -1404,6 +1461,22 @@ export class App {
         sentenceAudioFilename,
         pictureHtml,
       });
+
+      // Mined-line translation (Kiku's SentenceTranslation, or whichever field is configured).
+      // fields.Sentence already carries <b> around the surface, so the model can carry it across.
+      if (this.settings.trEnabled && this.settings.trField) {
+        const tr = (await chrome.runtime
+          .sendMessage({
+            type: "aiTranslate",
+            sentence: fields.Sentence ?? "",
+            word: dict,
+            title: document.title || "",
+            context: this.mineContext(cue),
+          })
+          .catch(() => null)) as AiTranslateResponse | null;
+        if (tr?.ok && tr.text) fields[this.settings.trField] = tr.text;
+        else if (tr && !tr.ok && !opts.quiet) this.toast("Translation: " + tr.error);
+      }
 
       const res = (await chrome.runtime.sendMessage({
         type: "ankiMine",
@@ -2217,9 +2290,26 @@ export class App {
   }
 
   // ----------------------------------------------------------------- youtube
+  /** Ask the MAIN-world YouTube inject to re-post its buffered caption tracks + cue bodies. Covers
+   *  captures made before this listener existed and cues YouTube serves from cache (no re-fetch). */
+  private requestYtReplay(): void {
+    window.postMessage({ source: "tnm-cmd", cmd: "replay" }, "*");
+  }
+
+  /** Ask the inject to fetch the target track's own caption baseUrl directly, instead of waiting for
+   *  YouTube to request it (which never happens on some videos, e.g. asr-only). No-op without tracks. */
+  private requestYtDirectFetch(): void {
+    const target = normalizeLang(this.settings.targetLang);
+    const cands = this.ytTracks.filter((t) => normalizeLang(t.lang) === target);
+    const track = cands.find((t) => t.kind !== "asr") || cands[0];
+    if (!track?.baseUrl) return;
+    window.postMessage({ source: "tnm-cmd", cmd: "fetchTrack", baseUrl: track.baseUrl, translateTo: this.translateTo() }, "*");
+  }
+
   private onWindowMessage(e: MessageEvent): void {
     const data = e.data;
     if (!data || data.source !== "tnm-yt") return;
+    console.info("[tnm] yt msg:", data.kind, data.kind === "captionData" ? `${data.lang}${data.asr ? "(asr)" : ""} ${String(data.body ?? "").length}b` : data.videoId ?? "");
     if (data.kind === "videoChanged") {
       if (data.videoId !== this.ytVideoId) {
         this.ytVideoId = data.videoId;
@@ -2260,6 +2350,7 @@ export class App {
           { source: "tnm-cmd", cmd: "enableCaptions", lang: this.settings.targetLang, translateTo: this.translateTo() },
           "*",
         );
+        this.requestYtDirectFetch(); // don't wait for YouTube to fetch — grab the track's baseUrl now
         this.scheduleCaptionRetry();
       }
       // Now that we know the available tracks, resolve the secondary line (official vs MT) and
@@ -2281,11 +2372,14 @@ export class App {
     if (l === normalizeLang(this.settings.targetLang)) {
       // Don't let an auto-generated track clobber a human-made one already loaded.
       if (this.targetTrack && !this.targetTrackAsr && asr) return;
+      const id = "yt:" + lang + ":" + this.ytVideoId;
+      // Buffer replay re-delivers the same body repeatedly — skip if it's already the loaded track.
+      if (this.targetTrack?.id === id && this.targetTrack.cues.length === cues.length && this.targetTrackAsr === asr) return;
       const wasEmpty = !this.targetTrack;
       clearTimeout(this.captionHintTimer);
       this.targetTrackAsr = asr;
       this.setTargetTrack({
-        id: "yt:" + lang + ":" + this.ytVideoId,
+        id,
         label: `YouTube · ${lang}${asr ? " (auto)" : ""}`,
         lang,
         role: "target",
@@ -2295,8 +2389,10 @@ export class App {
       console.info(`[tnm] loaded ${cues.length} YouTube captions (${lang}${asr ? ", asr" : ""})`);
       if (wasEmpty) this.toast(`Loaded ${cues.length} YouTube subtitles (${lang})`);
     } else if (l === normalizeLang(this.settings.nativeLang) && l !== normalizeLang(this.settings.targetLang)) {
+      const secId = "yt-sec:" + lang + ":" + this.ytVideoId;
+      if (this.secondaryTrack?.id === secId && this.secondaryTrack.cues.length === cues.length) return; // replay dedup
       this.setSecondaryTrack({
-        id: "yt-sec:" + lang + ":" + this.ytVideoId,
+        id: secId,
         label: `Translation · ${lang}`,
         lang,
         role: "secondary",
@@ -2333,6 +2429,7 @@ export class App {
           { source: "tnm-cmd", cmd: "enableCaptions", lang: this.settings.targetLang, translateTo: this.translateTo() },
           "*",
         );
+        this.requestYtDirectFetch(); // and try fetching the track's baseUrl directly each round
         this.scheduleCaptionRetry();
       } else if (this.sawTargetTrack) {
         this.toast("Couldn't auto-load captions — try YouTube's CC button or import a file.");

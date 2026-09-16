@@ -63,6 +63,9 @@ function groupToToken(group: JaFeature[]): Token {
     dict,
     pos,
     isWord: !isSymbol && /\S/.test(surface) && !/^[、。「」『』（）()・\s]+$/.test(surface),
+    // Remember the morphemes so a dictionary-validated pass can undo an over-merge
+    // (this pass is greedy: any 助動詞 continues the word, which glues だろう on).
+    ...(group.length > 1 ? { parts: group.map((g) => groupToToken([g])) } : {}),
   };
 }
 
