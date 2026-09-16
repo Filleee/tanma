@@ -32,6 +32,19 @@ const ALL_CAPS_THRESHOLD = 0.7;
 /** CJK ranges — used to decide whether joined fragments need a separating space. */
 const CJK = /[぀-ヿ㐀-䶿一-鿿豈-﫿ｦ-ﾟ]/;
 
+/** Rough speaking pace, used to tell a real pause apart from ordinary word spacing. YouTube gives
+ *  word START times only, so a fragment's gap is the time to the next one minus how long its own
+ *  text should take to say. CJK packs more morae per character than Latin does, hence two rates. */
+const SEC_PER_CJK_CHAR = 0.18;
+const SEC_PER_LATIN_CHAR = 0.07;
+/** Silence longer than this between two fragments reads as a sentence break. */
+const PAUSE_GAP = 0.35; // seconds
+/** Caps so a rebuilt cue stays a readable, minable unit. */
+const REGROUP_MAX_CHARS = 60;
+const REGROUP_MAX_DUR = 12; // seconds
+/** At or below this share of cues ending in punctuation, treat the whole track as unpunctuated. */
+const PUNCTUATED_FRACTION = 0.05;
+
 const NAMED_ENTITIES: Record<string, string> = {
   "&amp;": "&",
   "&lt;": "<",
@@ -134,6 +147,57 @@ function mergeSameSpan(cues: Cue[]): Cue[] {
   return out;
 }
 
+/** Estimated seconds needed to say `text` (CJK characters carry more morae than Latin ones). */
+function spokenSeconds(text: string): number {
+  const t = text.replace(/\s/g, "");
+  if (!t) return 0;
+  let cjk = 0;
+  for (const ch of t) if (CJK.test(ch)) cjk++;
+  return t.length * (cjk / t.length > 0.5 ? SEC_PER_CJK_CHAR : SEC_PER_LATIN_CHAR);
+}
+
+/** Does this track punctuate its sentences? Auto-generated Japanese never does. */
+function isPunctuated(cues: Cue[]): boolean {
+  if (!cues.length) return false;
+  const n = cues.filter((c) => endsWithDelimiter(c.text)).length;
+  return n / cues.length > PUNCTUATED_FRACTION;
+}
+
+/**
+ * Rebuild sentence-ish cues from ASR word/phrase fragments — the same idea as stable-ts's
+ * `merge_by_gap` / `split_by_gap` regroup, but driven by the per-word timings YouTube already
+ * ships. Those came from Google's own speech recognition, so the pauses are already encoded in
+ * them and we don't need the audio to find them.
+ *
+ * Auto-generated Japanese carries no punctuation at all, so silence is the only sentence signal
+ * available: glue fragments that run straight on, and break where the speaker actually paused.
+ * Merging stops at REGROUP_MAX_CHARS / REGROUP_MAX_DUR so a cue stays a usable mining unit.
+ */
+function mergeByGap(cues: Cue[]): Cue[] {
+  if (cues.length < 2) return cues;
+  const out: Cue[] = [];
+  let cur = { ...cues[0] };
+  let prev = cues[0];
+  for (let i = 1; i < cues.length; i++) {
+    const next = cues[i];
+    // Measure the pause between the two ORIGINAL fragments, not the growing merged cue.
+    const pause = next.start - prev.start - spokenSeconds(prev.text);
+    const merged = joinFragments(cur.text, next.text);
+    const tooBig =
+      merged.replace(/\s/g, "").length > REGROUP_MAX_CHARS || next.end - cur.start > REGROUP_MAX_DUR;
+    if (pause > PAUSE_GAP || tooBig) {
+      out.push(cur);
+      cur = { ...next };
+    } else {
+      cur.text = merged;
+      cur.end = Math.max(cur.end, next.end);
+    }
+    prev = next;
+  }
+  out.push(cur);
+  return out;
+}
+
 /**
  * Auto-generated tracks sometimes come ALL CAPS. If most lines are uppercase
  * (and the language has case), drop to sentence case so it reads — and tokenizes
@@ -223,6 +287,9 @@ function finalize(cues: Cue[], lang?: string): Cue[] {
   c.sort((a, b) => a.start - b.start || a.end - b.end);
   c = mergeAlike(c);
   c = mergeSameSpan(c);
+  // Unpunctuated (auto-generated) tracks arrive as word-level fragments: rebuild speech units
+  // from the pauses BEFORE trimOverlaps makes cues sequential and erases the gaps.
+  if (!isPunctuated(c)) c = mergeByGap(c);
   c = trimOverlaps(c);
   c = splitLongCues(c);
   c = normaliseAllCaps(c, lang);
@@ -319,4 +386,4 @@ export function parseYoutubeTimedText(body: string, lang?: string): Cue[] {
 }
 
 // Exposed for unit tests (DOM-free helpers).
-export const __test = { cleanText, decodeEntities, endsWithDelimiter, joinFragments, mergeAlike, mergeSameSpan, trimOverlaps, normaliseAllCaps, finalize };
+export const __test = { cleanText, decodeEntities, endsWithDelimiter, joinFragments, mergeAlike, mergeSameSpan, trimOverlaps, normaliseAllCaps, finalize, spokenSeconds, isPunctuated, mergeByGap };

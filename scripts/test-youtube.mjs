@@ -157,5 +157,41 @@ console.log("\nparseYoutubeTimedText — format detection");
   eq("empty body → no cues", parseYoutubeTimedText(""), []);
 }
 
+console.log("\nASR regroup (stable-ts style merge_by_gap)");
+{
+  // Word-level fragments running straight on → one speech unit.
+  const frags = [
+    { id: 0, start: 0.0, end: 0.4, text: "いや" },
+    { id: 1, start: 0.4, end: 0.8, text: "でも" },
+    { id: 2, start: 0.8, end: 1.6, text: "難易度" },
+    { id: 3, start: 1.6, end: 2.2, text: "による" },
+  ];
+  eq("fragments with no pause merge into one cue", texts(__test.mergeByGap(frags)), ["いやでも難易度による"]);
+
+  // A clear silence is a sentence break.
+  const withPause = [
+    { id: 0, start: 0.0, end: 0.4, text: "そうですね" },
+    { id: 1, start: 3.0, end: 3.5, text: "じゃあ" },
+    { id: 2, start: 3.5, end: 4.0, text: "行こう" },
+  ];
+  eq("a real pause splits the run", texts(__test.mergeByGap(withPause)), ["そうですね", "じゃあ行こう"]);
+
+  ok("punctuated track detected (left to the sentence path)", __test.isPunctuated([{ id: 0, start: 0, end: 1, text: "行こう。" }]));
+  ok("unpunctuated ASR detected", !__test.isPunctuated(frags));
+  ok("CJK costs more time per char than Latin", __test.spokenSeconds("難易度") > __test.spokenSeconds("abc"));
+
+  // Caps keep a cue minable even when the speaker never pauses.
+  const many = [];
+  for (let i = 0; i < 80; i++) many.push({ id: i, start: i * 0.2, end: i * 0.2 + 0.2, text: "あ" });
+  ok("length/duration cap breaks an endless run", __test.mergeByGap(many).length > 1);
+
+  // End-to-end: unpunctuated json3 fragments come out as one speech unit.
+  eq(
+    "json3 ASR fragments regroup end-to-end",
+    texts(parseYoutubeJson3({ events: [ev(0, 400, "いや"), ev(400, 400, "でも"), ev(800, 800, "難易度")] })),
+    ["いやでも難易度"],
+  );
+}
+
 console.log(failures === 0 ? "\nYOUTUBE PARSER: ALL TESTS PASS ✅" : `\n${failures} TEST(S) FAILED ❌`);
 process.exit(failures === 0 ? 0 : 1);
